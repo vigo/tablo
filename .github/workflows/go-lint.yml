@@ -1,0 +1,32 @@
+name: Run golangci-lint
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+
+concurrency:
+  group: golangci-lint-cauldron-lint
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Run golangci-lint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          args: --timeout=5m
