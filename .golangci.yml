@@ -28,6 +28,17 @@ linters:
     - nilerr
     - revive
 
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - fmt.Fprintln
+      - fmt.Fprintf
+  govet:
+    enable-all: true
+    settings:
+      shadow:
+        strict: true
+
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
