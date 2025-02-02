@@ -75,6 +75,14 @@ func parseArgs(args []string) ([]string, string) {
 	return allArgs, possibleFile
 }
 
+func stringSliceToRow(fields []string) table.Row {
+	row := make(table.Row, len(fields))
+	for i, v := range fields {
+		row[i] = v
+	}
+	return row
+}
+
 // Run runs the command.
 func Run() error {
 	output := flag.String("output", "stdout", "where to send output")
@@ -187,11 +195,7 @@ func (t *Tablo) Tabelize() error {
 			fields = strings.Split(line, string(t.FieldDelimeter))
 		}
 
-		row := make(table.Row, len(fields))
-		for i, field := range fields {
-			row[i] = field
-		}
-		tw.AppendRow(row)
+		tw.AppendRow(stringSliceToRow(fields))
 	}
 
 	tw.Render()
