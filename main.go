@@ -1,5 +1,5 @@
 /*
-Package main implements ...
+Package main implements cli execution.
 */
 package main
 

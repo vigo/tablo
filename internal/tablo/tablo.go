@@ -24,7 +24,14 @@ const (
 	breakTextForUnix    = "press ENTER and CTRL+D to finish text entry"
 	breakTextForWindows = "press CTRL+Z and ENTER to finish text entry"
 
-	defaultLineDelimeter = '\n'
+	helpOutput             = "where to send output"
+	helpLineDelimeterChar  = "line delimiter char to split the input"
+	helpFieldDelimeterChar = "field delimiter char to split the line input"
+	helpSeparateRows       = "draw separation line under rows"
+
+	defaultOutput         = "stdout"
+	defaultLineDelimeter  = '\n'
+	defaultFieldDelimeter = ' '
 )
 
 // sentinel errors.
@@ -86,10 +93,20 @@ func stringSliceToRow(fields []string) table.Row {
 
 // Run runs the command.
 func Run() error {
-	output := flag.String("output", "stdout", "where to send output")
+	output := flag.String("output", defaultOutput, helpOutput)
+	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
+
 	version := flag.Bool("version", false, "display version information")
-	lineDelimiterChar := flag.String("ldc", string(defaultLineDelimeter), "line delimiter char to split the input")
-	fieldDelimiterChar := flag.String("fdc", "", "field delimiter char to split the line input")
+
+	lineDelimiterChar := flag.String("line-delimeter-char", string(defaultLineDelimeter), helpLineDelimeterChar)
+	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimeter), helpLineDelimeterChar+" (short)")
+
+	fieldDelimiterChar := flag.String("field-delimeter-char", string(defaultFieldDelimeter), helpFieldDelimeterChar)
+	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimeter), helpFieldDelimeterChar+" (short)")
+
+	separateRows := flag.Bool("no-separate-rows", false, helpSeparateRows)
+	flag.BoolVar(separateRows, "nsr", false, helpSeparateRows+" (short)")
+
 	flag.Parse()
 
 	tbl, err := New(
@@ -100,18 +117,26 @@ func Run() error {
 		WithReadInputFunc(readInput),
 		WithLineDelimeter(*lineDelimiterChar),
 		WithFieldDelimeter(*fieldDelimiterChar),
+		WithSeparateRows(*separateRows),
 	)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tbl.Output.Close() }()
 
-	return tbl.Tabelize()
+	if err = tbl.Tabelize(); err != nil {
+		return err
+	}
+
+	if *output != "stdout" {
+		fmt.Fprintf(flag.CommandLine.Output(), "result saved to: %s\n", *output)
+	}
+
+	return nil
 }
 
 // Tablo holds the required params.
 type Tablo struct {
-	Input          string
 	Version        string
 	Output         io.WriteCloser
 	ReadInputFunc  ReadInputFunc
@@ -120,6 +145,7 @@ type Tablo struct {
 	LineDelimeter  rune
 	FieldDelimeter rune
 	DisplayVersion bool
+	SeparateRows   bool
 }
 
 func (t *Tablo) setDefaults() {
@@ -132,12 +158,13 @@ func (t *Tablo) setDefaults() {
 	if t.ParseArgsFunc == nil {
 		t.ParseArgsFunc = parseArgs
 	}
+	t.Version = Version
 }
 
 // Tabelize generates tablized output.
 func (t *Tablo) Tabelize() error {
 	if t.DisplayVersion {
-		fmt.Fprintf(t.Output, "%s\n", Version)
+		fmt.Fprintf(flag.CommandLine.Output(), "%s\n", t.Version)
 		return nil
 	}
 
@@ -180,7 +207,7 @@ func (t *Tablo) Tabelize() error {
 	tw := table.NewWriter()
 	tw.SetOutputMirror(t.Output)
 	tw.SetStyle(table.StyleLight)
-	tw.Style().Options.SeparateRows = true
+	tw.Style().Options.SeparateRows = !t.SeparateRows
 
 	var headers []string
 	var columnIndices []int
@@ -276,6 +303,15 @@ func WithOutput(output string) Option {
 	}
 }
 
+// WithOutputWriter sets the output write for test usage.
+func WithOutputWriter(wr io.WriteCloser) Option {
+	return func(t *Tablo) error {
+		t.Output = wr
+
+		return nil
+	}
+}
+
 // WithDisplayVersion sets the display version information or not.
 func WithDisplayVersion(display bool) Option {
 	return func(t *Tablo) error {
@@ -358,6 +394,15 @@ func WithFieldDelimeter(s string) Option {
 		}
 
 		t.FieldDelimeter = delimeter
+
+		return nil
+	}
+}
+
+// WithSeparateRows enables/disables the separation row line.
+func WithSeparateRows(sep bool) Option {
+	return func(t *Tablo) error {
+		t.SeparateRows = sep
 
 		return nil
 	}

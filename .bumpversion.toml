@@ -21,3 +21,6 @@ post_commit_hooks = []
 
 [[tool.bumpversion.files]]
 filename = "README.md"
+
+[[tool.bumpversion.files]]
+filename = "internal/tablo/version.go"
