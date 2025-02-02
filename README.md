@@ -95,33 +95,37 @@ docker images | tablo
 Or;
 
 ```bash
- docker images | tablo . -fdc " "
-┌───────────────────────────────────────────────────────┬────────┬──────────────┬────┬─────────┬──────┬────────┐
-│ REPOSITORY                                            │ TAG    │ IMAGE        │ ID │ CREATED │ SIZE │        │
-├───────────────────────────────────────────────────────┼────────┼──────────────┼────┼─────────┼──────┼────────┤
-│ vigo/basichttpdebugger                                │ latest │ 911f45e85b68 │ 19 │ hours   │ ago  │ 12.7MB │
-├───────────────────────────────────────────────────────┼────────┼──────────────┼────┼─────────┼──────┼────────┤
-│ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ latest │ b72784c93710 │ 19 │ hours   │ ago  │ 12.7MB │
-└───────────────────────────────────────────────────────┴────────┴──────────────┴────┴─────────┴──────┴────────┘
+docker images | tablo . -fdc " "
+┌───────────────────────────────────────────────────────┬────────┬──────────────┬──────────────┬────────┐
+│ REPOSITORY                                            │ TAG    │ IMAGE ID     │ CREATED      │ SIZE   │
+├───────────────────────────────────────────────────────┼────────┼──────────────┼──────────────┼────────┤
+│ vigo/basichttpdebugger                                │ latest │ 911f45e85b68 │ 21 hours ago │ 12.7MB │
+├───────────────────────────────────────────────────────┼────────┼──────────────┼──────────────┼────────┤
+│ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ latest │ b72784c93710 │ 21 hours ago │ 12.7MB │
+└───────────────────────────────────────────────────────┴────────┴──────────────┴──────────────┴────────┘
 ```
 
----
+You can also filter if your input has a kind of header row:
 
-## Contributor(s)
+```bash
+docker images | tablo . -fdc " " REPOSITORY
+┌───────────────────────────────────────────────────────┐
+│ REPOSITORY                                            │
+├───────────────────────────────────────────────────────┤
+│ vigo/basichttpdebugger                                │
+├───────────────────────────────────────────────────────┤
+│ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │
+└───────────────────────────────────────────────────────┘
 
-* [Uğur Özyılmazel](https://github.com/vigo) - Creator, maintainer
-
----
-
-## Contribute
-
-All PR’s are welcome!
-
-1. `fork` (https://github.com/vigo/tablo/fork)
-1. Create your `branch` (`git checkout -b my-feature`)
-1. `commit` yours (`git commit -am 'add some functionality'`)
-1. `push` your `branch` (`git push origin my-feature`)
-1. Than create a new **Pull Request**!
+docker images | tablo . -fdc " " REPOSITORY "IMAGE ID"
+┌───────────────────────────────────────────────────────┬──────────────┐
+│ REPOSITORY                                            │ IMAGE ID     │
+├───────────────────────────────────────────────────────┼──────────────┤
+│ vigo/basichttpdebugger                                │ 911f45e85b68 │
+├───────────────────────────────────────────────────────┼──────────────┤
+│ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ b72784c93710 │
+└───────────────────────────────────────────────────────┴──────────────┘
+```
 
 ---
 

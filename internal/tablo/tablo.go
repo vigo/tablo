@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -29,6 +30,8 @@ const (
 // sentinel errors.
 var (
 	ErrValueRequired = errors.New("value required")
+
+	spaceSplitter = regexp.MustCompile(`\s{2,}`)
 )
 
 // Tablizer defines main functionality.
@@ -57,22 +60,20 @@ func readInput(input io.Reader) (string, error) {
 }
 
 func parseArgs(args []string) ([]string, string) {
-	allArgs := args[1:]
-
 	var possibleFile string
 
-	if len(allArgs) == 0 {
+	if len(args) == 0 {
 		return nil, possibleFile
 	}
 
-	lastArg := allArgs[len(allArgs)-1]
+	lastArg := args[len(args)-1]
 
 	fileInfo, err := os.Stat(lastArg)
 	if err == nil && !fileInfo.IsDir() {
 		possibleFile = lastArg
 	}
 
-	return allArgs, possibleFile
+	return args, possibleFile
 }
 
 func stringSliceToRow(fields []string) table.Row {
@@ -92,7 +93,7 @@ func Run() error {
 	flag.Parse()
 
 	tbl, err := New(
-		WithArgs(os.Args),
+		WithArgs(flag.Args()),
 		WithOutput(*output),
 		WithDisplayVersion(*version),
 		WithParseArgsFunc(parseArgs),
@@ -176,26 +177,70 @@ func (t *Tablo) Tabelize() error {
 		return r == t.LineDelimeter
 	})
 
-	fmt.Println(t.Args)
-
 	tw := table.NewWriter()
 	tw.SetOutputMirror(t.Output)
 	tw.SetStyle(table.StyleLight)
 	tw.Style().Options.SeparateRows = true
 
-	for _, line := range lines {
+	var headers []string
+	var columnIndices []int
+
+	for i, line := range lines {
+		if len(t.Args) > 0 && i == 0 {
+			if t.FieldDelimeter == ' ' {
+				headers = spaceSplitter.Split(line, -1)
+			} else {
+				headers = strings.Split(line, string(t.FieldDelimeter))
+			}
+
+			for _, arg := range t.Args {
+				for idx, header := range headers {
+					if strings.EqualFold(header, arg) {
+						columnIndices = append(columnIndices, idx)
+						break
+					}
+				}
+			}
+
+			if len(columnIndices) > 0 {
+				var selectedHeaders []string
+				for _, idx := range columnIndices {
+					if idx < len(headers) {
+						selectedHeaders = append(selectedHeaders, headers[idx])
+					}
+				}
+				tw.AppendHeader(stringSliceToRow(selectedHeaders))
+			} else {
+				tw.AppendHeader(stringSliceToRow(headers))
+			}
+
+			continue
+		}
+
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
 
 		var fields []string
 		if t.FieldDelimeter == ' ' {
-			fields = strings.Fields(line)
+			fields = spaceSplitter.Split(line, -1)
 		} else {
 			fields = strings.Split(line, string(t.FieldDelimeter))
 		}
 
-		tw.AppendRow(stringSliceToRow(fields))
+		if len(columnIndices) > 0 {
+			var selectedFields []string
+			for _, idx := range columnIndices {
+				if idx < len(fields) {
+					selectedFields = append(selectedFields, fields[idx])
+				} else {
+					selectedFields = append(selectedFields, "x")
+				}
+			}
+			tw.AppendRow(stringSliceToRow(selectedFields))
+		} else {
+			tw.AppendRow(stringSliceToRow(fields))
+		}
 	}
 
 	tw.Render()
