@@ -155,6 +155,17 @@ cat /tmp/docker-images.txt
 
 ---
 
+## Rake Tasks
+
+```bash
+rake -T
+
+rake coverage  # show test coverage
+rake test      # run test
+```
+
+---
+
 ## TODO
 
 **2025-02-02**

@@ -34,6 +34,26 @@ func TestTablo_New_with_no_args(t *testing.T) {
 	assert.False(t, tbl.SeparateRows)
 }
 
+func TestTablo_New_with_nil_ParseArgsFunc(t *testing.T) {
+	tbl, err := tablo.New(
+		tablo.WithParseArgsFunc(nil),
+	)
+
+	assert.Nil(t, tbl)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, tablo.ErrValueRequired)
+}
+
+func TestTablo_New_with_nil_ReadInputFunc(t *testing.T) {
+	tbl, err := tablo.New(
+		tablo.WithReadInputFunc(nil),
+	)
+
+	assert.Nil(t, tbl)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, tablo.ErrValueRequired)
+}
+
 func TestTablo_New_WithArgs(t *testing.T) {
 	tbl, err := tablo.New(
 		tablo.WithArgs([]string{"FOO"}),
