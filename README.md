@@ -233,6 +233,7 @@ rake test            # run test
 - reduce complexity in code
 - add column filtering by index
 - improve test coverage
+- bug fixes
 
 **2025-02-02**
 
