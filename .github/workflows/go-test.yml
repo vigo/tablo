@@ -1,0 +1,37 @@
+name: Run go tests
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - '**'
+    paths:
+      - '**.go'
+
+concurrency:
+  group: tablo-go-test
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+        id: go
+
+      - name: Run tests
+        run: go test -v -coverprofile=coverage.txt ./...
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: vigo/tablo

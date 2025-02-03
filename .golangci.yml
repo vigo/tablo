@@ -1,0 +1,45 @@
+run:
+  timeout: 1m
+  concurrency: 4
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - staticcheck
+    - typecheck
+    - errcheck
+    - errorlint
+    - govet
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - gofmt
+    - gofumpt
+    - goimports
+    - gomoddirectives
+    - gosec
+    - gosimple
+    - ineffassign
+    - unparam
+    - unused
+    - makezero
+    - nilerr
+    - revive
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - fmt.Fprintln
+      - fmt.Fprintf
+  govet:
+    enable-all: true
+    settings:
+      shadow:
+        strict: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
