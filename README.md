@@ -1,4 +1,10 @@
 ![Version](https://img.shields.io/badge/version-0.0.0-orange.svg)
+[![Documentation](https://godoc.org/github.com/vigo/tablo?status.svg)](https://pkg.go.dev/github.com/vigo/tablo)
+[![Run go tests](https://github.com/vigo/tablo/actions/workflows/go-test.yml/badge.svg)](https://github.com/vigo/tablo/actions/workflows/go-test.yml)
+[![Run golangci-lint](https://github.com/vigo/tablo/actions/workflows/go-lint.yml/badge.svg)](https://github.com/vigo/tablo/actions/workflows/go-lint.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/vigo/tablo)](https://goreportcard.com/report/github.com/vigo/tablo)
+[![codecov](https://codecov.io/github/vigo/tablo/graph/badge.svg?token=Q8ACC1DLGK)](https://codecov.io/github/vigo/tablo)
+![Powered by Rake](https://img.shields.io/badge/powered_by-rake-blue?logo=ruby)
 
 # tablo
 
