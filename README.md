@@ -21,11 +21,11 @@ tablo -h
 Usage of tablo:
   -f string
     	field delimiter char to split the line input (short) (default " ")
-  -field-delimeter-char string
+  -field-delimiter-char string
     	field delimiter char to split the line input (default " ")
   -l string
     	line delimiter char to split the input (short) (default "\n")
-  -line-delimeter-char string
+  -line-delimiter-char string
     	line delimiter char to split the input (default "\n")
   -n	do not draw separation line under rows (short)
   -no-separate-rows
@@ -42,8 +42,10 @@ Usage of tablo:
 
 ## Usage
 
+Use `-l` or `-line-delimiter-char` for line delimiter.
+
 ```bash
-echo "${PATH}" | tablo -l ":" # ":" as line delimeter
+echo "${PATH}" | tablo -l ":"       # ":" as line delimiter
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │ /opt/homebrew/opt/postgresql@16/bin                                               │
 ├───────────────────────────────────────────────────────────────────────────────────┤
@@ -54,10 +56,10 @@ echo "${PATH}" | tablo -l ":" # ":" as line delimeter
 # output is trimmed...
 ```
 
-You can disable row separation line with `-nsr` flag:
+You can disable row separation line with `-n` or `-no-separate-rows` flag:
 
 ```bash
-echo "${PATH}" | tablo -l ":" -nsr
+echo "${PATH}" | tablo -l ":" -n    # ":" as line delimiter, remove row separation
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │ /opt/homebrew/opt/postgresql@16/bin                                               │
 │ /Users/vigo/.cargo/bin                                                            │
@@ -74,6 +76,13 @@ cat /tmp/foo | tablo
 ├────────────────┤
 │ this is line 2 │
 ├────────────────┤
+│ this is line   │
+└────────────────┘
+
+cat /tmp/foo | tablo -n
+┌────────────────┐
+│ this is line 1 │
+│ this is line 2 │
 │ this is line   │
 └────────────────┘
 ```
@@ -97,6 +106,14 @@ cat /etc/passwd | tablo -f ":"
 ├────────────────────────┼───┼─────┼─────┼─────────────────────────────────────────────────┼───────────────────────────────┼──────────────────┤
 │ _oahd                  │ * │ 441 │ 441 │ OAH Daemon                                      │ /var/empty                    │ /usr/bin/false   │
 └────────────────────────┴───┴─────┴─────┴─────────────────────────────────────────────────┴───────────────────────────────┴──────────────────┘
+# output is trimmed...
+
+cat /etc/passwd | tablo -f ":" -n
+┌────────────────────────┬───┬─────┬─────┬─────────────────────────────────────────────────┬───────────────────────────────┬──────────────────┐
+│ nobody                 │ * │ -2  │ -2  │ Unprivileged User                               │ /var/empty                    │ /usr/bin/false   │
+│ root                   │ * │ 0   │ 0   │ System Administrator                            │ /var/root                     │ /bin/sh          │
+└────────────────────────┴───┴─────┴─────┴─────────────────────────────────────────────────┴───────────────────────────────┴──────────────────┘
+# output is trimmed...
 ```
 
 Or;
@@ -133,7 +150,7 @@ docker images | tablo REPOSITORY "IMAGE ID"
 │ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ b72784c93710 │
 └───────────────────────────────────────────────────────┴──────────────┘
 
-docker images | tablo -nsr REPOSITORY "IMAGE ID"
+docker images | tablo -n REPOSITORY "IMAGE ID"
 ┌───────────────────────────────────────────────────────┬──────────────┐
 │ REPOSITORY                                            │ IMAGE ID     │
 ├───────────────────────────────────────────────────────┼──────────────┤
@@ -159,8 +176,9 @@ cat /tmp/docker-images.txt
 ```bash
 rake -T
 
-rake coverage  # show test coverage
-rake test      # run test
+rake bump[revision]  # bump version, default: patch, available: major,minor,patch
+rake coverage        # show test coverage
+rake test            # run test
 ```
 
 ---
@@ -171,6 +189,8 @@ rake test      # run test
 
 - add `json`, `csv` support
 - add `json`, `csv` filtering
+- add sorting such as `-sort <FIELD>`
+- add `ls` support, such as `-where -size > 10mb`, `-sort ...`
 
 ---
 

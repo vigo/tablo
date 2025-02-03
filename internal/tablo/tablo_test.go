@@ -3,7 +3,6 @@ package tablo_test
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -32,8 +31,8 @@ func TestTablo_New_with_no_args(t *testing.T) {
 	assert.NotNil(t, tbl.ReadInputFunc)
 	assert.NotNil(t, tbl.ParseArgsFunc)
 	assert.Empty(t, tbl.Args)
-	assert.Equal(t, int32(0), tbl.LineDelimeter)
-	assert.Equal(t, int32(0), tbl.FieldDelimeter)
+	assert.Equal(t, int32(0), tbl.LineDelimiter)
+	assert.Equal(t, int32(0), tbl.FieldDelimiter)
 	assert.False(t, tbl.DisplayVersion)
 	assert.False(t, tbl.SeparateRows)
 }
@@ -113,7 +112,7 @@ func TestMain_Run_PipedInput(t *testing.T) {
 
 	tbl, err := tablo.New(
 		tablo.WithOutputWriter(output),
-		tablo.WithFieldDelimeter(" "),
+		tablo.WithFieldDelimiter(" "),
 		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
 			b := input.Bytes()
 			return string(b[:len(b)-1]), nil
@@ -134,13 +133,13 @@ func TestMain_Run_PipedInput(t *testing.T) {
 	assert.Equal(t, expectedOutput, strings.Join(lines[1:], "\n"))
 }
 
-func TestMain_Run_PipedInput_with_delimeter(t *testing.T) {
+func TestMain_Run_PipedInput_with_delimiter(t *testing.T) {
 	input := bytes.NewBufferString("hello:world\n")
 	output := new(BytesWriteCloser)
 
 	tbl, err := tablo.New(
 		tablo.WithOutputWriter(output),
-		tablo.WithFieldDelimeter(":"),
+		tablo.WithFieldDelimiter(":"),
 		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
 			b := input.Bytes()
 			return string(b[:len(b)-1]), nil
@@ -169,8 +168,8 @@ superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958M
 
 	tbl, err := tablo.New(
 		tablo.WithOutputWriter(output),
-		tablo.WithFieldDelimeter(" "),
-		tablo.WithLineDelimeter("\n"),
+		tablo.WithFieldDelimiter(" "),
+		tablo.WithLineDelimiter("\n"),
 		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
 			b := input.Bytes()
 			return string(b[:len(b)-1]), nil
@@ -203,8 +202,8 @@ superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958M
 
 	tbl, err := tablo.New(
 		tablo.WithOutputWriter(output),
-		tablo.WithFieldDelimeter(" "),
-		tablo.WithLineDelimeter("\n"),
+		tablo.WithFieldDelimiter(" "),
+		tablo.WithLineDelimiter("\n"),
 		tablo.WithArgs([]string{"REPOSITORY"}),
 		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
 			b := input.Bytes()
@@ -238,8 +237,8 @@ superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958M
 
 	tbl, err := tablo.New(
 		tablo.WithOutputWriter(output),
-		tablo.WithFieldDelimeter(" "),
-		tablo.WithLineDelimeter("\n"),
+		tablo.WithFieldDelimiter(" "),
+		tablo.WithLineDelimiter("\n"),
 		tablo.WithSeparateRows(true),
 		tablo.WithArgs([]string{"REPOSITORY"}),
 		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
@@ -268,7 +267,7 @@ func resetFlags() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 }
 
-func TestRun_WithOutputArg(t *testing.T) {
+func TestRun_ReadFromFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test.txt")
 	assert.NoError(t, err)
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
@@ -297,5 +296,41 @@ func TestRun_WithOutputArg(t *testing.T) {
 	output := new(BytesWriteCloser)
 	_, _ = output.ReadFrom(r)
 
-	fmt.Println(output.String())
+	expectedOutput := `┌──────────────┐
+│ this is vigo │
+└──────────────┘
+`
+
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestRun_ReadFromFile_SaveToFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test_output.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	content := `this is vigo
+`
+	_, err = tmpFile.WriteString(content)
+	assert.NoError(t, err)
+	_ = tmpFile.Close()
+
+	outputFile, err := os.CreateTemp("", "output.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(outputFile.Name()) }()
+
+	os.Args = []string{"tablo", "-o", outputFile.Name(), tmpFile.Name()}
+	resetFlags()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+
+	result, err := os.ReadFile(outputFile.Name())
+	assert.NoError(t, err)
+
+	expectedOutput := `┌──────────────┐
+│ this is vigo │
+└──────────────┘
+`
+	assert.Equal(t, expectedOutput, string(result))
 }

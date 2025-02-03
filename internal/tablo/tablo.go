@@ -26,13 +26,13 @@ const (
 	breakTextForWindows = "press CTRL+Z and ENTER to finish text entry"
 
 	helpOutput             = "where to send output"
-	helpLineDelimeterChar  = "line delimiter char to split the input"
-	helpFieldDelimeterChar = "field delimiter char to split the line input"
+	helpLineDelimiterChar  = "line delimiter char to split the input"
+	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
 
 	defaultOutput         = "stdout"
-	defaultLineDelimeter  = '\n'
-	defaultFieldDelimeter = ' '
+	defaultLineDelimiter  = '\n'
+	defaultFieldDelimiter = ' '
 )
 
 // sentinel errors.
@@ -81,8 +81,8 @@ func parseArgs(args []string) ([]string, string) {
 	fileInfo, err := os.Stat(lastArg)
 	if err == nil && !fileInfo.IsDir() {
 		possibleFile = lastArg
+		args = args[:len(args)-1]
 	}
-
 	return args, possibleFile
 }
 
@@ -101,11 +101,11 @@ func Run() error {
 
 	version := flag.Bool("version", false, "display version information")
 
-	lineDelimiterChar := flag.String("line-delimeter-char", string(defaultLineDelimeter), helpLineDelimeterChar)
-	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimeter), helpLineDelimeterChar+" (short)")
+	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
+	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
 
-	fieldDelimiterChar := flag.String("field-delimeter-char", string(defaultFieldDelimeter), helpFieldDelimeterChar)
-	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimeter), helpFieldDelimeterChar+" (short)")
+	fieldDelimiterChar := flag.String("field-delimiter-char", string(defaultFieldDelimiter), helpFieldDelimiterChar)
+	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimiter), helpFieldDelimiterChar+" (short)")
 
 	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
 	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
@@ -118,8 +118,8 @@ func Run() error {
 		WithDisplayVersion(*version),
 		WithParseArgsFunc(parseArgs),
 		WithReadInputFunc(readInput),
-		WithLineDelimeter(*lineDelimiterChar),
-		WithFieldDelimeter(*fieldDelimiterChar),
+		WithLineDelimiter(*lineDelimiterChar),
+		WithFieldDelimiter(*fieldDelimiterChar),
 		WithSeparateRows(*noSeparateRows),
 	)
 	if err != nil {
@@ -145,8 +145,8 @@ type Tablo struct {
 	ReadInputFunc  ReadInputFunc
 	ParseArgsFunc  ParseArgsFunc
 	Args           []string
-	LineDelimeter  rune
-	FieldDelimeter rune
+	LineDelimiter  rune
+	FieldDelimiter rune
 	DisplayVersion bool
 	SeparateRows   bool
 }
@@ -204,7 +204,7 @@ func (t *Tablo) Tabelize() error {
 	}
 
 	lines := strings.FieldsFunc(input, func(r rune) bool {
-		return r == t.LineDelimeter
+		return r == t.LineDelimiter
 	})
 
 	tw := table.NewWriter()
@@ -218,10 +218,10 @@ func (t *Tablo) Tabelize() error {
 	spaceAmount := 2
 	for i, line := range lines {
 		if len(t.Args) > 0 && i == 0 {
-			if t.FieldDelimeter == ' ' {
+			if t.FieldDelimiter == ' ' {
 				headers = spaceSplitter(spaceAmount).Split(line, -1)
 			} else {
-				headers = strings.Split(line, string(t.FieldDelimeter))
+				headers = strings.Split(line, string(t.FieldDelimiter))
 			}
 
 			for _, arg := range t.Args {
@@ -253,10 +253,10 @@ func (t *Tablo) Tabelize() error {
 		}
 
 		var fields []string
-		if t.FieldDelimeter == ' ' {
+		if t.FieldDelimiter == ' ' {
 			fields = spaceSplitter(spaceAmount).Split(line, -1)
 		} else {
-			fields = strings.Split(line, string(t.FieldDelimeter))
+			fields = strings.Split(line, string(t.FieldDelimiter))
 		}
 
 		if len(columnIndices) > 0 {
@@ -349,55 +349,55 @@ func WithParseArgsFunc(fn ParseArgsFunc) Option {
 	}
 }
 
-// WithLineDelimeter sets the line delimeter.
-func WithLineDelimeter(s string) Option {
+// WithLineDelimiter sets the line delimiter.
+func WithLineDelimiter(s string) Option {
 	return func(t *Tablo) error {
 		if s == "" {
-			return fmt.Errorf("%w, line delimeter is empty string", ErrValueRequired)
+			return fmt.Errorf("%w, line delimiter is empty string", ErrValueRequired)
 		}
 
-		var delimeter rune
+		var delimiter rune
 
 		switch s {
 		case `\n`:
-			delimeter = defaultLineDelimeter
+			delimiter = defaultLineDelimiter
 		case `\r`:
-			delimeter = '\r'
+			delimiter = '\r'
 		case `\t`:
-			delimeter = '\t'
+			delimiter = '\t'
 		default:
-			delimeter = []rune(s)[0]
+			delimiter = []rune(s)[0]
 		}
 
-		t.LineDelimeter = delimeter
+		t.LineDelimiter = delimiter
 
 		return nil
 	}
 }
 
-// WithFieldDelimeter sets the field delimeter.
-func WithFieldDelimeter(s string) Option {
+// WithFieldDelimiter sets the field delimiter.
+func WithFieldDelimiter(s string) Option {
 	return func(t *Tablo) error {
 		if s == "" {
-			t.FieldDelimeter = 0
+			t.FieldDelimiter = 0
 
 			return nil
 		}
 
-		var delimeter rune
+		var delimiter rune
 
 		switch s {
 		case `\f`:
-			delimeter = '\f'
+			delimiter = '\f'
 		case `\v`:
-			delimeter = '\v'
+			delimiter = '\v'
 		case `\t`:
-			delimeter = '\t'
+			delimiter = '\t'
 		default:
-			delimeter = []rune(s)[0]
+			delimiter = []rune(s)[0]
 		}
 
-		t.FieldDelimeter = delimeter
+		t.FieldDelimiter = delimiter
 
 		return nil
 	}
