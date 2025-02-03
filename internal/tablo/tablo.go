@@ -125,14 +125,14 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tbl.Output.Close() }()
 
 	if err = tbl.Tabelize(); err != nil {
 		return err
 	}
 
-	if *output != "stdout" {
+	if *output != defaultOutput {
 		fmt.Fprintf(flag.CommandLine.Output(), "result saved to: %s\n", *output)
+		defer func() { _ = tbl.Output.Close() }()
 	}
 
 	return nil
@@ -295,7 +295,7 @@ func WithArgs(args []string) Option {
 func WithOutput(output string) Option {
 	return func(t *Tablo) error {
 		t.Output = os.Stdout
-		if output != "stdout" {
+		if output != defaultOutput {
 			f, err := os.Create(filepath.Clean(output))
 			if err != nil {
 				return err

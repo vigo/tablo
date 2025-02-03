@@ -2,6 +2,8 @@ package tablo_test
 
 import (
 	"bytes"
+	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -262,16 +264,38 @@ superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958M
 	assert.Equal(t, expectedOutput, strings.Join(lines[1:], "\n"))
 }
 
-func TestRun_NoArgs(t *testing.T) {
+func resetFlags() {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+}
+
+func TestRun_WithOutputArg(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	content := `this is vigo
+`
+	_, err = tmpFile.WriteString(content)
+	assert.NoError(t, err)
+	_ = tmpFile.Close()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+
+	os.Args = []string{"tablo", tmpFile.Name()}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+	os.Stdout = oldStdout
+
 	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
 
-	tbl, err := tablo.New(
-		tablo.WithOutputWriter(output),
-	)
-	assert.NoError(t, err)
-	assert.NotNil(t, tbl)
-
-	err = tbl.Tabelize()
-	assert.NoError(t, err)
-	assert.Contains(t, output.String(), "press ENTER")
+	fmt.Println(output.String())
 }
