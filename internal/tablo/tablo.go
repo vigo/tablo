@@ -33,6 +33,7 @@ const (
 	defaultOutput         = "stdout"
 	defaultLineDelimiter  = '\n'
 	defaultFieldDelimiter = ' '
+	defaultSpaceAmount    = 2
 )
 
 // sentinel errors.
@@ -164,13 +165,7 @@ func (t *Tablo) setDefaults() {
 	t.Version = Version
 }
 
-// Tabelize generates tablized output.
-func (t *Tablo) Tabelize() error {
-	if t.DisplayVersion {
-		fmt.Fprintf(flag.CommandLine.Output(), "%s\n", t.Version)
-		return nil
-	}
-
+func (t *Tablo) getReadFrom() (*os.File, error) {
 	args, fileArg := t.ParseArgsFunc(t.Args)
 	t.Args = args
 
@@ -178,13 +173,15 @@ func (t *Tablo) Tabelize() error {
 	if fileArg != "" {
 		file, err := os.Open(filepath.Clean(fileArg))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		readFrom = file
-		defer func() { _ = file.Close() }()
 	}
+	return readFrom, nil
+}
 
+func (t *Tablo) handleTerminalMode(readFrom *os.File) error {
 	stat, err := readFrom.Stat()
 	if err != nil {
 		return err
@@ -197,54 +194,50 @@ func (t *Tablo) Tabelize() error {
 			fmt.Fprintln(t.Output, breakTextForUnix)
 		}
 	}
+	return nil
+}
 
-	input, err := t.ReadInputFunc(readFrom)
-	if err != nil {
-		return err
+func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
+	if len(lines) == 0 || len(t.Args) == 0 {
+		return nil
 	}
-
-	lines := strings.FieldsFunc(input, func(r rune) bool {
-		return r == t.LineDelimiter
-	})
-
-	tw := table.NewWriter()
-	tw.SetOutputMirror(t.Output)
-	tw.SetStyle(table.StyleLight)
-	tw.Style().Options.SeparateRows = !t.SeparateRows
 
 	var headers []string
 	var columnIndices []int
 
-	spaceAmount := 2
+	if t.FieldDelimiter == ' ' {
+		headers = spaceSplitter(defaultSpaceAmount).Split(lines[0], -1)
+	} else {
+		headers = strings.Split(lines[0], string(t.FieldDelimiter))
+	}
+
+	for _, arg := range t.Args {
+		for idx, header := range headers {
+			if strings.EqualFold(header, arg) {
+				columnIndices = append(columnIndices, idx)
+				break
+			}
+		}
+	}
+
+	if len(columnIndices) > 0 {
+		var selectedHeaders []string
+		for _, idx := range columnIndices {
+			if idx < len(headers) {
+				selectedHeaders = append(selectedHeaders, headers[idx])
+			}
+		}
+		tw.AppendHeader(stringSliceToRow(selectedHeaders))
+	} else {
+		tw.AppendHeader(stringSliceToRow(headers))
+	}
+
+	return columnIndices
+}
+
+func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int) {
 	for i, line := range lines {
 		if len(t.Args) > 0 && i == 0 {
-			if t.FieldDelimiter == ' ' {
-				headers = spaceSplitter(spaceAmount).Split(line, -1)
-			} else {
-				headers = strings.Split(line, string(t.FieldDelimiter))
-			}
-
-			for _, arg := range t.Args {
-				for idx, header := range headers {
-					if strings.EqualFold(header, arg) {
-						columnIndices = append(columnIndices, idx)
-						break
-					}
-				}
-			}
-
-			if len(columnIndices) > 0 {
-				var selectedHeaders []string
-				for _, idx := range columnIndices {
-					if idx < len(headers) {
-						selectedHeaders = append(selectedHeaders, headers[idx])
-					}
-				}
-				tw.AppendHeader(stringSliceToRow(selectedHeaders))
-			} else {
-				tw.AppendHeader(stringSliceToRow(headers))
-			}
-
 			continue
 		}
 
@@ -253,8 +246,9 @@ func (t *Tablo) Tabelize() error {
 		}
 
 		var fields []string
+
 		if t.FieldDelimiter == ' ' {
-			fields = spaceSplitter(spaceAmount).Split(line, -1)
+			fields = spaceSplitter(defaultSpaceAmount).Split(line, -1)
 		} else {
 			fields = strings.Split(line, string(t.FieldDelimiter))
 		}
@@ -273,7 +267,45 @@ func (t *Tablo) Tabelize() error {
 			tw.AppendRow(stringSliceToRow(fields))
 		}
 	}
+}
 
+// Tabelize generates tablized output.
+func (t *Tablo) Tabelize() error {
+	if t.DisplayVersion {
+		fmt.Fprintf(flag.CommandLine.Output(), "%s\n", t.Version)
+		return nil
+	}
+	readFrom, err := t.getReadFrom()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if readFrom != os.Stdin {
+			_ = readFrom.Close()
+		}
+	}()
+
+	if err = t.handleTerminalMode(readFrom); err != nil {
+		return err
+	}
+
+	input, err := t.ReadInputFunc(readFrom)
+	if err != nil {
+		return err
+	}
+
+	lines := strings.FieldsFunc(input, func(r rune) bool {
+		return r == t.LineDelimiter
+	})
+
+	tw := table.NewWriter()
+	tw.SetOutputMirror(t.Output)
+	tw.SetStyle(table.StyleLight)
+	tw.Style().Options.SeparateRows = !t.SeparateRows
+
+	columnIndices := t.processHeaders(tw, lines)
+	t.processRows(tw, lines, columnIndices)
 	tw.Render()
 
 	return nil
