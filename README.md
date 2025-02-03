@@ -27,10 +27,9 @@ Usage of tablo:
     	line delimiter char to split the input (short) (default "\n")
   -line-delimeter-char string
     	line delimiter char to split the input (default "\n")
+  -n	do not draw separation line under rows (short)
   -no-separate-rows
-    	draw separation line under rows
-  -nsr
-    	draw separation line under rows (short)
+    	do not draw separation line under rows
   -o string
     	where to send output (short) (default "stdout")
   -output string

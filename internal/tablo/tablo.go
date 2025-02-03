@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -27,7 +28,7 @@ const (
 	helpOutput             = "where to send output"
 	helpLineDelimeterChar  = "line delimiter char to split the input"
 	helpFieldDelimeterChar = "field delimiter char to split the line input"
-	helpSeparateRows       = "draw separation line under rows"
+	helpNoSeparateRows     = "do not draw separation line under rows"
 
 	defaultOutput         = "stdout"
 	defaultLineDelimeter  = '\n'
@@ -37,13 +38,15 @@ const (
 // sentinel errors.
 var (
 	ErrValueRequired = errors.New("value required")
-
-	spaceSplitter = regexp.MustCompile(`\s{2,}`)
 )
 
 // Tablizer defines main functionality.
 type Tablizer interface {
 	Tabelize() error
+}
+
+func spaceSplitter(spaceAmount int) *regexp.Regexp {
+	return regexp.MustCompile(`\s{` + strconv.Itoa(spaceAmount) + `,}`)
 }
 
 // ReadInputFunc is a function type.
@@ -104,8 +107,8 @@ func Run() error {
 	fieldDelimiterChar := flag.String("field-delimeter-char", string(defaultFieldDelimeter), helpFieldDelimeterChar)
 	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimeter), helpFieldDelimeterChar+" (short)")
 
-	separateRows := flag.Bool("no-separate-rows", false, helpSeparateRows)
-	flag.BoolVar(separateRows, "nsr", false, helpSeparateRows+" (short)")
+	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
+	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
 
 	flag.Parse()
 
@@ -117,7 +120,7 @@ func Run() error {
 		WithReadInputFunc(readInput),
 		WithLineDelimeter(*lineDelimiterChar),
 		WithFieldDelimeter(*fieldDelimiterChar),
-		WithSeparateRows(*separateRows),
+		WithSeparateRows(*noSeparateRows),
 	)
 	if err != nil {
 		return err
@@ -212,10 +215,11 @@ func (t *Tablo) Tabelize() error {
 	var headers []string
 	var columnIndices []int
 
+	spaceAmount := 2
 	for i, line := range lines {
 		if len(t.Args) > 0 && i == 0 {
 			if t.FieldDelimeter == ' ' {
-				headers = spaceSplitter.Split(line, -1)
+				headers = spaceSplitter(spaceAmount).Split(line, -1)
 			} else {
 				headers = strings.Split(line, string(t.FieldDelimeter))
 			}
@@ -250,7 +254,7 @@ func (t *Tablo) Tabelize() error {
 
 		var fields []string
 		if t.FieldDelimeter == ' ' {
-			fields = spaceSplitter.Split(line, -1)
+			fields = spaceSplitter(spaceAmount).Split(line, -1)
 		} else {
 			fields = strings.Split(line, string(t.FieldDelimeter))
 		}
@@ -261,7 +265,7 @@ func (t *Tablo) Tabelize() error {
 				if idx < len(fields) {
 					selectedFields = append(selectedFields, fields[idx])
 				} else {
-					selectedFields = append(selectedFields, "x")
+					selectedFields = append(selectedFields, "")
 				}
 			}
 			tw.AppendRow(stringSliceToRow(selectedFields))
