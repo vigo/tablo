@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,7 @@ const (
 var (
 	ErrValueRequired = errors.New("value required")
 	ErrInvalidValue  = errors.New("invalid value")
+	ErrInvalidFile   = errors.New("invalid file")
 )
 
 // Tablizer defines main functionality.
@@ -74,8 +76,19 @@ func maxConsecutiveRepeats(s string, delimiter rune) int {
 // ReadInputFunc is a function type.
 type ReadInputFunc func(io.Reader) (string, error)
 
-// ParseArgsFunc ia a function type.
-type ParseArgsFunc func([]string) ([]string, string)
+func isFile(filename string) error {
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return err
+	}
+
+	fileMode := fileInfo.Mode()
+	if fileMode.IsRegular() {
+		return nil
+	}
+
+	return ErrInvalidFile
+}
 
 func readInput(input io.Reader) (string, error) {
 	r := bufio.NewReader(input)
@@ -88,24 +101,9 @@ func readInput(input io.Reader) (string, error) {
 		return "", nil
 	}
 
-	return string(b), nil
-}
+	str := strings.TrimSuffix(string(b), "\n")
 
-func parseArgs(args []string) ([]string, string) {
-	var possibleFile string
-
-	if len(args) == 0 {
-		return nil, possibleFile
-	}
-
-	lastArg := args[len(args)-1]
-
-	fileInfo, err := os.Stat(lastArg)
-	if err == nil && !fileInfo.IsDir() {
-		possibleFile = lastArg
-		args = args[:len(args)-1]
-	}
-	return args, possibleFile
+	return str, nil
 }
 
 func stringSliceToRow(fields []string) table.Row {
@@ -121,7 +119,6 @@ type Tablo struct {
 	Version        string
 	Output         io.WriteCloser
 	ReadInputFunc  ReadInputFunc
-	ParseArgsFunc  ParseArgsFunc
 	Args           []string
 	FilterIndexes  []int
 	LineDelimiter  rune
@@ -137,42 +134,75 @@ func (t *Tablo) setDefaults() {
 	if t.ReadInputFunc == nil {
 		t.ReadInputFunc = readInput
 	}
-	if t.ParseArgsFunc == nil {
-		t.ParseArgsFunc = parseArgs
-	}
 	t.Version = Version
 }
 
+func getPipeCharDeviceMode() (fs.FileMode, error) {
+	fileInfo, err := os.Stdin.Stat()
+	if err != nil {
+		return fs.ModeIrregular, err
+	}
+	return fileInfo.Mode() & os.ModeCharDevice, nil
+}
+
+func (t *Tablo) parseArgs() (string, error) {
+	pipeMode, pipeErr := getPipeCharDeviceMode()
+	if pipeErr != nil {
+		return "", pipeErr
+	}
+
+	fmt.Println("t.Args", t.Args, len(t.Args))
+	fmt.Println("pipeMode", pipeMode)
+	fmt.Printf("pipeMode: %d\n", pipeMode)
+
+	if len(t.Args) == 0 || pipeMode == 0 {
+		return "", nil
+	}
+
+	fmt.Println("t.Args", t.Args)
+
+	fileArg := t.Args[0]
+	if err := isFile(fileArg); err != nil {
+		return "", err
+	}
+
+	t.Args = t.Args[1:]
+
+	return fileArg, nil
+}
+
 func (t *Tablo) getReadFrom() (*os.File, error) {
-	args, fileArg := t.ParseArgsFunc(t.Args)
-	t.Args = args
+	fileArg, err := t.parseArgs()
+	if err != nil {
+		return nil, err
+	}
 
 	readFrom := os.Stdin
 	if fileArg != "" {
-		file, err := os.Open(filepath.Clean(fileArg))
-		if err != nil {
-			return nil, err
+		file, errF := os.Open(filepath.Clean(fileArg))
+		if errF != nil {
+			return nil, errF
 		}
 
 		readFrom = file
 	}
-	return readFrom, nil
-}
 
-func (t *Tablo) handleTerminalMode(readFrom *os.File) error {
-	stat, err := readFrom.Stat()
-	if err != nil {
-		return err
-	}
+	if readFrom == os.Stdin {
+		pipeMode, pipeErr := getPipeCharDeviceMode()
+		if pipeErr != nil {
+			return nil, pipeErr
+		}
 
-	if stat.Mode()&os.ModeCharDevice != 0 {
-		if runtime.GOOS == "windows" {
-			fmt.Fprintln(t.Output, breakTextForWindows)
-		} else {
-			fmt.Fprintln(t.Output, breakTextForUnix)
+		if pipeMode != 0 {
+			if runtime.GOOS == "windows" {
+				fmt.Fprintln(t.Output, breakTextForWindows)
+			} else {
+				fmt.Fprintln(t.Output, breakTextForUnix)
+			}
 		}
 	}
-	return nil
+
+	return readFrom, nil
 }
 
 func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
@@ -208,7 +238,11 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 		}
 		tw.AppendHeader(stringSliceToRow(selectedHeaders))
 	} else {
-		tw.AppendHeader(stringSliceToRow(headers))
+		if len(lines) > 1 {
+			tw.AppendHeader(stringSliceToRow(headers))
+		} else {
+			tw.AppendRow(stringSliceToRow(headers))
+		}
 	}
 
 	return columnIndices
@@ -222,11 +256,6 @@ func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int
 		if len(t.Args) > 0 && i == 0 {
 			continue
 		}
-
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-
 		var fields []string
 
 		if t.FieldDelimiter == ' ' {
@@ -282,18 +311,22 @@ func (t *Tablo) Tabelize() error {
 		}
 	}()
 
-	if err = t.handleTerminalMode(readFrom); err != nil {
-		return err
-	}
-
 	input, err := t.ReadInputFunc(readFrom)
 	if err != nil {
 		return err
 	}
 
-	lines := strings.FieldsFunc(input, func(r rune) bool {
+	rawLines := strings.FieldsFunc(input, func(r rune) bool {
 		return r == t.LineDelimiter
 	})
+
+	var lines []string
+	for _, line := range rawLines {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		lines = append(lines, line)
+	}
 
 	tw := table.NewWriter()
 	tw.SetOutputMirror(t.Output)
@@ -372,18 +405,6 @@ func WithReadInputFunc(fn ReadInputFunc) Option {
 	}
 }
 
-// WithParseArgsFunc sets the parse args function.
-func WithParseArgsFunc(fn ParseArgsFunc) Option {
-	return func(t *Tablo) error {
-		if fn == nil {
-			return fmt.Errorf("%w, parse args function is nil", ErrValueRequired)
-		}
-		t.ParseArgsFunc = fn
-
-		return nil
-	}
-}
-
 // WithLineDelimiter sets the line delimiter.
 func WithLineDelimiter(s string) Option {
 	return func(t *Tablo) error {
@@ -438,8 +459,8 @@ func WithFieldDelimiter(s string) Option {
 	}
 }
 
-// WithSeparateRows enables/disables the separation row line.
-func WithSeparateRows(sep bool) Option {
+// WithNoSeparateRows disables the separation row line.
+func WithNoSeparateRows(sep bool) Option {
 	return func(t *Tablo) error {
 		t.SeparateRows = sep
 
@@ -517,11 +538,10 @@ func Run() error {
 		WithArgs(flag.Args()),
 		WithOutput(*output),
 		WithDisplayVersion(*version),
-		WithParseArgsFunc(parseArgs),
 		WithReadInputFunc(readInput),
 		WithLineDelimiter(*lineDelimiterChar),
 		WithFieldDelimiter(*fieldDelimiterChar),
-		WithSeparateRows(*noSeparateRows),
+		WithNoSeparateRows(*noSeparateRows),
 		WithFilterIndexes(*filterIndexes),
 	)
 	if err != nil {
