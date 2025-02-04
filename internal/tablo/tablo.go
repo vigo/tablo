@@ -323,11 +323,14 @@ func WithArgs(args []string) Option {
 // WithOutput sets the output writer.
 func WithOutput(output string) Option {
 	return func(t *Tablo) error {
+		if output == "" {
+			return fmt.Errorf("%w, output can not be an empty string", ErrValueRequired)
+		}
 		t.Output = os.Stdout
 		if output != defaultOutput {
 			f, err := os.Create(filepath.Clean(output))
 			if err != nil {
-				return err
+				return fmt.Errorf("%w, %w", ErrInvalidValue, err)
 			}
 			t.Output = f
 		}
@@ -339,6 +342,9 @@ func WithOutput(output string) Option {
 // WithOutputWriter sets the output write for test usage.
 func WithOutputWriter(wr io.WriteCloser) Option {
 	return func(t *Tablo) error {
+		if wr == nil {
+			return fmt.Errorf("%w, output writer is nil", ErrValueRequired)
+		}
 		t.Output = wr
 
 		return nil
