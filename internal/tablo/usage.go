@@ -6,8 +6,7 @@ import (
 	"os"
 )
 
-const usage = `
-usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
+const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   flags:
 
@@ -38,12 +37,23 @@ usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   # save output to a file
   $ docker images | %[1]s -o /path/to/docker-images.txt REPOSITORY "IMAGE ID"
 
+  # use default file redirection
+  $ docker images | %[1]s REPOSITORY "IMAGE ID" > /path/to/docker-images.txt
+
 `
 
 func getUsage() {
+	binaryName := os.Args[0]
+	versionInformation := Version
+
+	if os.Getenv("PRINT_HELP_FOR_README") != "" {
+		binaryName = "tablo"
+		versionInformation = "X.X.X"
+	}
+
 	args := []any{
-		os.Args[0],
-		Version,
+		binaryName,
+		versionInformation,
 		string(defaultFieldDelimiter),
 	}
 	fmt.Fprintf(os.Stdout, usage, args...)

@@ -23,12 +23,11 @@ Command line args:
 
 ```bash
 tablo -h
-
 usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   flags:
 
-  -version                          display version information (0.0.2)
+  -version                          display version information (X.X.X)
   -f, -field-delimiter-char         field delimiter char to split the line input
                                     (default: " ")
   -l, -line-delimiter-char          line delimiter char to split the input
@@ -47,13 +46,16 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ cat /path/to/file | tablo -n
   $ cat /etc/passwd | tablo -f ":"
   $ cat /etc/passwd | tablo -f ":" -n
-  $ cat /etc/passwd | tablo -n -f ":" -fi "1,3"   # show columns 1 and 3 only
+  $ cat /etc/passwd | tablo -n -f ":" -fi "1,5"   # show columns 1 and 5 only
   $ docker images | tablo
   $ docker images | tablo REPOSITORY              # show only REPOSITORY colum
   $ docker images | tablo REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
 
   # save output to a file
   $ docker images | tablo -o /path/to/docker-images.txt REPOSITORY "IMAGE ID"
+
+  # use default file redirection
+  $ docker images | tablo REPOSITORY "IMAGE ID" > /path/to/docker-images.txt
 
 ```
 
@@ -228,7 +230,7 @@ rake test            # run test
 
 ## Change Log
 
-**2025-02-03**
+**2025-02-05**
 
 - reduce complexity in code
 - add column filtering by index
