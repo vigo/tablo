@@ -438,33 +438,34 @@ C64         street tuff       tRSI`
 	assert.Equal(t, expectedOutput, output.String())
 }
 
-// func TestTablo_Run_Read_Input_From_Non_Existing_File(t *testing.T) {
-// 	os.Args = []string{"tablo", "f4|<3"}
-// 	resetFlags()
-//
-// 	oldStdout := os.Stdout
-// 	r, w, _ := os.Pipe()
-// 	os.Stdout = w
-//
-// 	err := tablo.Run()
-// 	assert.NoError(t, err)
-// 	_ = w.Close()
-// 	os.Stdout = oldStdout
-//
-// 	output := new(BytesWriteCloser)
-// 	_, _ = output.ReadFrom(r)
-//
-// 	fmt.Println(output)
-// }
+func TestTablo_Run_Read_Input_From_Non_Existing_File(t *testing.T) {
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
 
-// // func TestRun_ReadFrom_NonExistingFile(t *testing.T) {
-// // 	os.Args = []string{"tablo", "fake-file"}
-// // 	resetFlags()
-// //
-// // 	err := tablo.Run()
-// // 	assert.Error(t, err)
-// // }
-//
+	os.Args = []string{"tablo", "f4|<3"}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	assert.Equal(t, 0, output.Len())
+}
+
 // func TestRun_ReadFromFile_SaveToFile(t *testing.T) {
 // 	tmpFile, err := os.CreateTemp("", "test_output.txt")
 // 	assert.NoError(t, err)
