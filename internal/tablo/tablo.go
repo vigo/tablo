@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -137,37 +136,63 @@ func (t *Tablo) setDefaults() {
 	t.Version = Version
 }
 
-func getPipeCharDeviceMode() (fs.FileMode, error) {
-	fileInfo, err := os.Stdin.Stat()
-	if err != nil {
-		return fs.ModeIrregular, err
-	}
-	return fileInfo.Mode() & os.ModeCharDevice, nil
-}
+// func getPipeCharDeviceMode() (fs.FileMode, error) {
+// 	fileInfo, err := os.Stdin.Stat()
+// 	if err != nil {
+// 		return fs.ModeIrregular, err
+// 	}
+// 	return fileInfo.Mode() & os.ModeCharDevice, nil
+// }
+
+// func getFileMode() (fs.FileMode, error) {
+// 	fileInfo, err := os.Stdin.Stat()
+// 	if err != nil {
+// 		return fs.ModeIrregular, err
+// 	}
+//
+// 	return fileInfo.Mode(), nil
+// }
+
+// func isCharDevice(fm fs.FileMode) bool {
+// 	return fm&os.ModeCharDevice != 0
+// }
+//
+// func isNamedPipe(fm fs.FileMode) bool {
+// 	return fm&os.ModeNamedPipe != 0
+// }
+
+// pipe handlers.
+var (
+	IsNamedPipe  = func(f os.FileInfo) bool { return f.Mode()&os.ModeNamedPipe != 0 }
+	IsCharDevice = func(f os.FileInfo) bool { return f.Mode()&os.ModeCharDevice != 0 }
+)
 
 func (t *Tablo) parseArgs() (string, error) {
-	pipeMode, pipeErr := getPipeCharDeviceMode()
-	if pipeErr != nil {
-		return "", pipeErr
+	finfo, finfoErr := os.Stdin.Stat()
+	if finfoErr != nil {
+		return "", finfoErr
 	}
+	// fmode, fmodeErr := getFileMode()
+	// if fmodeErr != nil {
+	// 	return "", fmodeErr
+	// }
 
-	fmt.Println("t.Args", t.Args, len(t.Args))
-	fmt.Println("pipeMode", pipeMode)
-	fmt.Printf("pipeMode: %d\n", pipeMode)
+	// fmt.Println("isNamedPipe", IsNamedPipe(finfo))
+	// fmt.Println("isCharDevice", IsCharDevice(finfo))
 
-	if len(t.Args) == 0 || pipeMode == 0 {
+	if len(t.Args) == 0 || (len(t.Args) > 0 && IsNamedPipe(finfo)) {
+		// fmt.Println("exit - len(t.Args) == 0")
 		return "", nil
 	}
 
-	fmt.Println("t.Args", t.Args)
-
 	fileArg := t.Args[0]
+	// fmt.Println("fileArg", fileArg)
 	if err := isFile(fileArg); err != nil {
 		return "", err
 	}
 
 	t.Args = t.Args[1:]
-
+	// fmt.Println("exit")
 	return fileArg, nil
 }
 
@@ -188,12 +213,17 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 	}
 
 	if readFrom == os.Stdin {
-		pipeMode, pipeErr := getPipeCharDeviceMode()
-		if pipeErr != nil {
-			return nil, pipeErr
+		finfo, finfoErr := os.Stdin.Stat()
+		if finfoErr != nil {
+			return nil, finfoErr
 		}
 
-		if pipeMode != 0 {
+		// fmode, fmodeErr := getFileMode()
+		// if fmodeErr != nil {
+		// 	return nil, fmodeErr
+		// }
+
+		if IsCharDevice(finfo) {
 			if runtime.GOOS == "windows" {
 				fmt.Fprintln(t.Output, breakTextForWindows)
 			} else {
