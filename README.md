@@ -23,25 +23,40 @@ Command line args:
 
 ```bash
 tablo -h
+usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
 
-Usage of tablo:
-  -f string
-    	field delimiter char to split the line input (short) (default " ")
-  -field-delimiter-char string
-    	field delimiter char to split the line input (default " ")
-  -l string
-    	line delimiter char to split the input (short) (default "\n")
-  -line-delimiter-char string
-    	line delimiter char to split the input (default "\n")
-  -n	do not draw separation line under rows (short)
-  -no-separate-rows
-    	do not draw separation line under rows
-  -o string
-    	where to send output (short) (default "stdout")
-  -output string
-    	where to send output (default "stdout")
-  -version
-    	display version information
+  flags:
+
+  -version                          display version information (X.X.X)
+  -f, -field-delimiter-char         field delimiter char to split the line input
+                                    (default: " ")
+  -l, -line-delimiter-char          line delimiter char to split the input
+                                    (default: "\n")
+  -n, -no-separate-rows             do not draw separation line under rows
+  -fi, -filter-indexes              filter columns by index
+  -o, -output                       where to send output
+                                    (default "stdout")
+
+  examples:
+
+  $ tablo                                         # interactive mode
+  $ echo "${PATH}" | tablo -l ":"
+  $ echo "${PATH}" | tablo -l ":" -n
+  $ cat /path/to/file | tablo
+  $ cat /path/to/file | tablo -n
+  $ cat /etc/passwd | tablo -f ":"
+  $ cat /etc/passwd | tablo -f ":" -n
+  $ cat /etc/passwd | tablo -n -f ":" -fi "1,5"   # show columns 1 and 5 only
+  $ docker images | tablo
+  $ docker images | tablo REPOSITORY              # show only REPOSITORY colum
+  $ docker images | tablo REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
+
+  # save output to a file
+  $ docker images | tablo -o /path/to/docker-images.txt REPOSITORY "IMAGE ID"
+
+  # use default file redirection
+  $ docker images | tablo REPOSITORY "IMAGE ID" > /path/to/docker-images.txt
+
 ```
 
 ---
@@ -93,7 +108,8 @@ cat /tmp/foo | tablo -n
 └────────────────┘
 ```
 
-Or check your `/etc/passwd`:
+Or check your `/etc/passwd`, use `-f` or `-field-delimiter-char` flag for
+custom field delimiter:
 
 ```bash
 cat /etc/passwd | tablo -f ":"
@@ -120,6 +136,18 @@ cat /etc/passwd | tablo -f ":" -n
 │ root                   │ * │ 0   │ 0   │ System Administrator                            │ /var/root                     │ /bin/sh          │
 └────────────────────────┴───┴─────┴─────┴─────────────────────────────────────────────────┴───────────────────────────────┴──────────────────┘
 # output is trimmed...
+```
+
+If your input doesn’t have a kind of header, you can use `-fi` or `-filter-indexes`
+flag to filter by column index. Index values are not **zero-based**, example
+illustrates how to display first (1) and fifth (5) columns only:
+
+```bash
+cat /etc/passwd | tablo -f ":" -n -fi "1,5"
+┌────────────────────────┬─────────────────────────────────────────────────┐
+│ nobody                 │ Unprivileged User                               │
+│ root                   │ System Administrator                            │
+└────────────────────────┴─────────────────────────────────────────────────┘
 ```
 
 Or;
@@ -201,6 +229,13 @@ rake test            # run test
 ---
 
 ## Change Log
+
+**2025-02-05**
+
+- reduce complexity in code
+- add column filtering by index
+- improve test coverage
+- bug fixes
 
 **2025-02-02**
 

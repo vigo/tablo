@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 var _ Tablizer = (*Tablo)(nil) // compile time proof
@@ -29,16 +30,19 @@ const (
 	helpLineDelimiterChar  = "line delimiter char to split the input"
 	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
+	helpFilterIndexes      = "filter columns by index"
 
 	defaultOutput         = "stdout"
-	defaultLineDelimiter  = '\n'
 	defaultFieldDelimiter = ' '
+	defaultLineDelimiter  = '\n'
 	defaultSpaceAmount    = 2
 )
 
 // sentinel errors.
 var (
 	ErrValueRequired = errors.New("value required")
+	ErrInvalidValue  = errors.New("invalid value")
+	ErrInvalidFile   = errors.New("invalid file")
 )
 
 // Tablizer defines main functionality.
@@ -50,11 +54,40 @@ func spaceSplitter(spaceAmount int) *regexp.Regexp {
 	return regexp.MustCompile(`\s{` + strconv.Itoa(spaceAmount) + `,}`)
 }
 
+func charSplitter(char rune, minRepeat int) *regexp.Regexp {
+	pattern := regexp.QuoteMeta(string(char)) + "{" + strconv.Itoa(minRepeat) + ",}"
+	return regexp.MustCompile(pattern)
+}
+
+func maxConsecutiveRepeats(s string, delimiter rune) int {
+	pattern := regexp.MustCompile(regexp.QuoteMeta(string(delimiter)) + "+")
+	matches := pattern.FindAllString(s, -1)
+
+	maxCount := 1
+	for _, match := range matches {
+		if len(match) > maxCount {
+			maxCount = len(match)
+		}
+	}
+	return maxCount
+}
+
 // ReadInputFunc is a function type.
 type ReadInputFunc func(io.Reader) (string, error)
 
-// ParseArgsFunc ia a function type.
-type ParseArgsFunc func([]string) ([]string, string)
+func isFile(filename string) error {
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return err
+	}
+
+	fileMode := fileInfo.Mode()
+	if fileMode.IsRegular() {
+		return nil
+	}
+
+	return ErrInvalidFile
+}
 
 func readInput(input io.Reader) (string, error) {
 	r := bufio.NewReader(input)
@@ -67,24 +100,9 @@ func readInput(input io.Reader) (string, error) {
 		return "", nil
 	}
 
-	return string(b[:len(b)-1]), nil
-}
+	str := strings.TrimSuffix(string(b), "\n")
 
-func parseArgs(args []string) ([]string, string) {
-	var possibleFile string
-
-	if len(args) == 0 {
-		return nil, possibleFile
-	}
-
-	lastArg := args[len(args)-1]
-
-	fileInfo, err := os.Stat(lastArg)
-	if err == nil && !fileInfo.IsDir() {
-		possibleFile = lastArg
-		args = args[:len(args)-1]
-	}
-	return args, possibleFile
+	return str, nil
 }
 
 func stringSliceToRow(fields []string) table.Row {
@@ -95,57 +113,13 @@ func stringSliceToRow(fields []string) table.Row {
 	return row
 }
 
-// Run runs the command.
-func Run() error {
-	output := flag.String("output", defaultOutput, helpOutput)
-	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
-
-	version := flag.Bool("version", false, "display version information")
-
-	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
-	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
-
-	fieldDelimiterChar := flag.String("field-delimiter-char", string(defaultFieldDelimiter), helpFieldDelimiterChar)
-	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimiter), helpFieldDelimiterChar+" (short)")
-
-	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
-	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
-
-	flag.Parse()
-
-	tbl, err := New(
-		WithArgs(flag.Args()),
-		WithOutput(*output),
-		WithDisplayVersion(*version),
-		WithParseArgsFunc(parseArgs),
-		WithReadInputFunc(readInput),
-		WithLineDelimiter(*lineDelimiterChar),
-		WithFieldDelimiter(*fieldDelimiterChar),
-		WithSeparateRows(*noSeparateRows),
-	)
-	if err != nil {
-		return err
-	}
-
-	if err = tbl.Tabelize(); err != nil {
-		return err
-	}
-
-	if *output != defaultOutput {
-		fmt.Fprintf(flag.CommandLine.Output(), "result saved to: %s\n", *output)
-		defer func() { _ = tbl.Output.Close() }()
-	}
-
-	return nil
-}
-
 // Tablo holds the required params.
 type Tablo struct {
 	Version        string
 	Output         io.WriteCloser
 	ReadInputFunc  ReadInputFunc
-	ParseArgsFunc  ParseArgsFunc
 	Args           []string
+	FilterIndexes  []int
 	LineDelimiter  rune
 	FieldDelimiter rune
 	DisplayVersion bool
@@ -159,42 +133,66 @@ func (t *Tablo) setDefaults() {
 	if t.ReadInputFunc == nil {
 		t.ReadInputFunc = readInput
 	}
-	if t.ParseArgsFunc == nil {
-		t.ParseArgsFunc = parseArgs
-	}
 	t.Version = Version
 }
 
+// pipe handlers.
+var (
+	IsNamedPipe  = func(f os.FileInfo) bool { return f.Mode()&os.ModeNamedPipe != 0 }
+	IsCharDevice = func(f os.FileInfo) bool { return f.Mode()&os.ModeCharDevice != 0 }
+)
+
+func (t *Tablo) parseArgs() (string, error) {
+	finfo, finfoErr := os.Stdin.Stat()
+	if finfoErr != nil {
+		return "", finfoErr
+	}
+
+	if len(t.Args) == 0 || (len(t.Args) > 0 && IsNamedPipe(finfo)) {
+		return "", nil
+	}
+
+	fileArg := t.Args[0]
+	if err := isFile(fileArg); err != nil {
+		return "", err
+	}
+
+	t.Args = t.Args[1:]
+	return fileArg, nil
+}
+
 func (t *Tablo) getReadFrom() (*os.File, error) {
-	args, fileArg := t.ParseArgsFunc(t.Args)
-	t.Args = args
+	fileArg, err := t.parseArgs()
+	if err != nil {
+		return nil, err
+	}
 
 	readFrom := os.Stdin
 	if fileArg != "" {
-		file, err := os.Open(filepath.Clean(fileArg))
-		if err != nil {
-			return nil, err
+		file, errF := os.Open(filepath.Clean(fileArg))
+		if errF != nil {
+			return nil, errF
 		}
 
 		readFrom = file
 	}
-	return readFrom, nil
-}
 
-func (t *Tablo) handleTerminalMode(readFrom *os.File) error {
-	stat, err := readFrom.Stat()
-	if err != nil {
-		return err
-	}
+	if readFrom == os.Stdin {
+		finfo, finfoErr := os.Stdin.Stat()
+		if finfoErr != nil {
+			return nil, finfoErr
+		}
 
-	if stat.Mode()&os.ModeCharDevice != 0 {
-		if runtime.GOOS == "windows" {
-			fmt.Fprintln(t.Output, breakTextForWindows)
-		} else {
-			fmt.Fprintln(t.Output, breakTextForUnix)
+		if IsCharDevice(finfo) {
+			if runtime.GOOS == "windows" {
+				fmt.Fprintln(t.Output, breakTextForWindows)
+			} else {
+				fmt.Fprintln(t.Output, breakTextForUnix)
+			}
 		}
 	}
-	return nil
+
+	return readFrom, nil
 }
 
 func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
@@ -208,7 +206,8 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 	if t.FieldDelimiter == ' ' {
 		headers = spaceSplitter(defaultSpaceAmount).Split(lines[0], -1)
 	} else {
-		headers = strings.Split(lines[0], string(t.FieldDelimiter))
+		repeatAmount := maxConsecutiveRepeats(lines[0], t.FieldDelimiter)
+		headers = charSplitter(t.FieldDelimiter, repeatAmount).Split(lines[0], -1)
 	}
 
 	for _, arg := range t.Args {
@@ -229,32 +228,46 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 		}
 		tw.AppendHeader(stringSliceToRow(selectedHeaders))
 	} else {
-		tw.AppendHeader(stringSliceToRow(headers))
+		if len(lines) > 1 {
+			tw.AppendHeader(stringSliceToRow(headers))
+		} else {
+			tw.AppendRow(stringSliceToRow(headers))
+		}
 	}
 
 	return columnIndices
 }
 
 func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int) {
+	columnIndicesLen := len(columnIndices)
+	filterIndexesLen := len(t.FilterIndexes)
+
 	for i, line := range lines {
 		if len(t.Args) > 0 && i == 0 {
 			continue
 		}
-
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-
 		var fields []string
 
 		if t.FieldDelimiter == ' ' {
 			fields = spaceSplitter(defaultSpaceAmount).Split(line, -1)
 		} else {
-			fields = strings.Split(line, string(t.FieldDelimiter))
+			repeatAmount := maxConsecutiveRepeats(line, t.FieldDelimiter)
+			fields = charSplitter(t.FieldDelimiter, repeatAmount).Split(line, -1)
 		}
 
-		if len(columnIndices) > 0 {
-			var selectedFields []string
+		var selectedFields []string
+
+		switch {
+		case filterIndexesLen > 0:
+			for _, idx := range t.FilterIndexes {
+				if idx >= 0 && idx < len(fields) {
+					selectedFields = append(selectedFields, fields[idx])
+				} else {
+					selectedFields = append(selectedFields, "")
+				}
+			}
+
+		case columnIndicesLen > 0:
 			for _, idx := range columnIndices {
 				if idx < len(fields) {
 					selectedFields = append(selectedFields, fields[idx])
@@ -262,10 +275,12 @@ func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int
 					selectedFields = append(selectedFields, "")
 				}
 			}
-			tw.AppendRow(stringSliceToRow(selectedFields))
-		} else {
-			tw.AppendRow(stringSliceToRow(fields))
+
+		default:
+			selectedFields = fields
 		}
+
+		tw.AppendRow(stringSliceToRow(selectedFields))
 	}
 }
 
@@ -286,26 +301,31 @@ func (t *Tablo) Tabelize() error {
 		}
 	}()
 
-	if err = t.handleTerminalMode(readFrom); err != nil {
-		return err
-	}
-
 	input, err := t.ReadInputFunc(readFrom)
 	if err != nil {
 		return err
 	}
 
-	lines := strings.FieldsFunc(input, func(r rune) bool {
+	rawLines := strings.FieldsFunc(input, func(r rune) bool {
 		return r == t.LineDelimiter
 	})
+
+	var lines []string
+	for _, line := range rawLines {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		lines = append(lines, line)
+	}
 
 	tw := table.NewWriter()
 	tw.SetOutputMirror(t.Output)
 	tw.SetStyle(table.StyleLight)
+	tw.Style().Format.Header = text.FormatDefault
 	tw.Style().Options.SeparateRows = !t.SeparateRows
 
-	columnIndices := t.processHeaders(tw, lines)
-	t.processRows(tw, lines, columnIndices)
+	headerColumnIndices := t.processHeaders(tw, lines)
+	t.processRows(tw, lines, headerColumnIndices)
 	tw.Render()
 
 	return nil
@@ -326,11 +346,14 @@ func WithArgs(args []string) Option {
 // WithOutput sets the output writer.
 func WithOutput(output string) Option {
 	return func(t *Tablo) error {
+		if output == "" {
+			return fmt.Errorf("%w, output can not be an empty string", ErrValueRequired)
+		}
 		t.Output = os.Stdout
 		if output != defaultOutput {
 			f, err := os.Create(filepath.Clean(output))
 			if err != nil {
-				return err
+				return fmt.Errorf("%w, %w", ErrInvalidValue, err)
 			}
 			t.Output = f
 		}
@@ -342,6 +365,9 @@ func WithOutput(output string) Option {
 // WithOutputWriter sets the output write for test usage.
 func WithOutputWriter(wr io.WriteCloser) Option {
 	return func(t *Tablo) error {
+		if wr == nil {
+			return fmt.Errorf("%w, output writer is nil", ErrValueRequired)
+		}
 		t.Output = wr
 
 		return nil
@@ -369,18 +395,6 @@ func WithReadInputFunc(fn ReadInputFunc) Option {
 	}
 }
 
-// WithParseArgsFunc sets the parse args function.
-func WithParseArgsFunc(fn ParseArgsFunc) Option {
-	return func(t *Tablo) error {
-		if fn == nil {
-			return fmt.Errorf("%w, parse args function is nil", ErrValueRequired)
-		}
-		t.ParseArgsFunc = fn
-
-		return nil
-	}
-}
-
 // WithLineDelimiter sets the line delimiter.
 func WithLineDelimiter(s string) Option {
 	return func(t *Tablo) error {
@@ -391,14 +405,14 @@ func WithLineDelimiter(s string) Option {
 		var delimiter rune
 
 		switch s {
-		case `\n`:
-			delimiter = defaultLineDelimiter
-		case `\r`:
+		case "\n":
+			delimiter = '\n'
+		case "\r":
 			delimiter = '\r'
-		case `\t`:
+		case "\t":
 			delimiter = '\t'
 		default:
-			delimiter = []rune(s)[0]
+			delimiter = rune(s[0])
 		}
 
 		t.LineDelimiter = delimiter
@@ -419,14 +433,14 @@ func WithFieldDelimiter(s string) Option {
 		var delimiter rune
 
 		switch s {
-		case `\f`:
+		case "\f":
 			delimiter = '\f'
-		case `\v`:
+		case "\v":
 			delimiter = '\v'
-		case `\t`:
+		case "\t":
 			delimiter = '\t'
 		default:
-			delimiter = []rune(s)[0]
+			delimiter = rune(s[0])
 		}
 
 		t.FieldDelimiter = delimiter
@@ -435,10 +449,39 @@ func WithFieldDelimiter(s string) Option {
 	}
 }
 
-// WithSeparateRows enables/disables the separation row line.
-func WithSeparateRows(sep bool) Option {
+// WithNoSeparateRows disables the separation row line.
+func WithNoSeparateRows(sep bool) Option {
 	return func(t *Tablo) error {
 		t.SeparateRows = sep
+
+		return nil
+	}
+}
+
+// WithFilterIndexes sets the filter index columns.
+func WithFilterIndexes(indexes string) Option {
+	return func(t *Tablo) error {
+		if indexes == "" {
+			return nil
+		}
+
+		ss := strings.Split(indexes, ",")
+		if len(ss) > 0 {
+			idxes := make([]int, len(ss))
+			for i, v := range ss {
+				n, err := strconv.Atoi(v)
+				if err != nil {
+					return fmt.Errorf("%w, %s is not a number", ErrInvalidValue, v)
+				}
+
+				if n > 0 {
+					idxes[i] = n - 1
+				}
+
+			}
+
+			t.FilterIndexes = idxes
+		}
 
 		return nil
 	}
@@ -457,4 +500,52 @@ func New(options ...Option) (*Tablo, error) {
 	tbl.setDefaults()
 
 	return tbl, nil
+}
+
+// Run runs the command.
+func Run() error {
+	flag.Usage = getUsage
+	output := flag.String("output", defaultOutput, helpOutput)
+	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
+
+	version := flag.Bool("version", false, "display version information")
+
+	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
+	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
+
+	fieldDelimiterChar := flag.String("field-delimiter-char", string(defaultFieldDelimiter), helpFieldDelimiterChar)
+	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimiter), helpFieldDelimiterChar+" (short)")
+
+	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
+	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
+
+	filterIndexes := flag.String("filter-indexes", "", helpFilterIndexes)
+	flag.StringVar(filterIndexes, "fi", "", helpFilterIndexes+" (short)")
+
+	flag.Parse()
+
+	tbl, err := New(
+		WithArgs(flag.Args()),
+		WithOutput(*output),
+		WithDisplayVersion(*version),
+		WithReadInputFunc(readInput),
+		WithLineDelimiter(*lineDelimiterChar),
+		WithFieldDelimiter(*fieldDelimiterChar),
+		WithNoSeparateRows(*noSeparateRows),
+		WithFilterIndexes(*filterIndexes),
+	)
+	if err != nil {
+		return err
+	}
+
+	if err = tbl.Tabelize(); err != nil {
+		return err
+	}
+
+	if *output != defaultOutput {
+		fmt.Fprintf(flag.CommandLine.Output(), "result saved to: %s\n", *output)
+		defer func() { _ = tbl.Output.Close() }()
+	}
+
+	return nil
 }
