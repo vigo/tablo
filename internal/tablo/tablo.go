@@ -405,14 +405,14 @@ func WithLineDelimiter(s string) Option {
 		var delimiter rune
 
 		switch s {
-		case `\n`:
-			delimiter = defaultLineDelimiter
-		case `\r`:
+		case "\n":
+			delimiter = '\n'
+		case "\r":
 			delimiter = '\r'
-		case `\t`:
+		case "\t":
 			delimiter = '\t'
 		default:
-			delimiter = []rune(s)[0]
+			delimiter = rune(s[0])
 		}
 
 		t.LineDelimiter = delimiter
@@ -433,14 +433,14 @@ func WithFieldDelimiter(s string) Option {
 		var delimiter rune
 
 		switch s {
-		case `\f`:
+		case "\f":
 			delimiter = '\f'
-		case `\v`:
+		case "\v":
 			delimiter = '\v'
-		case `\t`:
+		case "\t":
 			delimiter = '\t'
 		default:
-			delimiter = []rune(s)[0]
+			delimiter = rune(s[0])
 		}
 
 		t.FieldDelimiter = delimiter
