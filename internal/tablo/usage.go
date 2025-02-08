@@ -16,6 +16,8 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   -l, -line-delimiter-char          line delimiter char to split the input
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
+  -nb, -no-borders                  do not draw borders
+  -nh, -no-headers                  do not show headers even if there is a match
   -fi, -filter-indexes              filter columns by index
   -o, -output                       where to send output
                                     (default "stdout")
@@ -30,6 +32,8 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ cat /etc/passwd | %[1]s -f ":"
   $ cat /etc/passwd | %[1]s -f ":" -n
   $ cat /etc/passwd | %[1]s -n -f ":" -fi "1,5"   # show columns 1 and 5 only
+  $ cat /etc/passwd | %[1]s -n -f ":" -nb nobody  # list users only (macos)
+  $ cat /etc/passwd | %[1]s -n -f ":" -nb root    # list users only (linux)
   $ docker images | %[1]s
   $ docker images | %[1]s REPOSITORY              # show only REPOSITORY colum
   $ docker images | %[1]s REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
@@ -39,6 +43,13 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   # use default file redirection
   $ docker images | %[1]s REPOSITORY "IMAGE ID" > /path/to/docker-images.txt
+
+  # csv files
+  $ cat /path/to/file.csv | %[1]s -f ";"
+  $ cat /path/to/file.csv | %[1]s -f ";" -n
+  $ cat /path/to/file.csv | %[1]s -f ";" -n -nb
+  $ cat /path/to/file.csv | %[1]s -f ";" -n -nb -nh
+  $ cat /path/to/file.csv | %[1]s -f ";" -n -nb -nh <HEADER>
 
 `
 

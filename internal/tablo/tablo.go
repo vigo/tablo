@@ -30,6 +30,8 @@ const (
 	helpLineDelimiterChar  = "line delimiter char to split the input"
 	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
+	helpNoBorders          = "do not draw borders"
+	helpNoHeaders          = "do not show headers even if there is a match"
 	helpFilterIndexes      = "filter columns by index"
 
 	defaultOutput         = "stdout"
@@ -70,6 +72,42 @@ func maxConsecutiveRepeats(s string, delimiter rune) int {
 		}
 	}
 	return maxCount
+}
+
+func customStyleLight() *table.Style {
+	return &table.Style{
+		Name: "CustomStyleLight",
+		Box: table.BoxStyle{
+			BottomLeft:       "└",
+			BottomRight:      "┘",
+			BottomSeparator:  "┴",
+			EmptySeparator:   " ",
+			Left:             "│",
+			LeftSeparator:    "├",
+			MiddleHorizontal: "─",
+			MiddleSeparator:  "┼",
+			MiddleVertical:   "│",
+			PaddingLeft:      " ",
+			PaddingRight:     " ",
+			PageSeparator:    "\n",
+			Right:            "│",
+			RightSeparator:   "┤",
+			TopLeft:          "┌",
+			TopRight:         "┐",
+			TopSeparator:     "┬",
+			UnfinishedRow:    " ≈",
+		},
+		Format: table.FormatOptions{
+			Footer: text.FormatUpper,
+			Header: text.FormatUpper,
+			Row:    text.FormatDefault,
+		},
+		Options: table.Options{
+			DrawBorder:      true,
+			SeparateHeader:  true,
+			SeparateColumns: true,
+		},
+	}
 }
 
 // ReadInputFunc is a function type.
@@ -124,6 +162,8 @@ type Tablo struct {
 	FieldDelimiter rune
 	DisplayVersion bool
 	SeparateRows   bool
+	DrawBorder     bool
+	HideHeaders    bool
 }
 
 func (t *Tablo) setDefaults() {
@@ -226,7 +266,9 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 				selectedHeaders = append(selectedHeaders, headers[idx])
 			}
 		}
-		tw.AppendHeader(stringSliceToRow(selectedHeaders))
+		if !t.HideHeaders {
+			tw.AppendHeader(stringSliceToRow(selectedHeaders))
+		}
 	} else {
 		if len(lines) > 1 {
 			tw.AppendHeader(stringSliceToRow(headers))
@@ -318,14 +360,26 @@ func (t *Tablo) Tabelize() error {
 		lines = append(lines, line)
 	}
 
+	drawBorders := !t.DrawBorder
+	drawSeparateRowsLine := !t.SeparateRows
+
 	tw := table.NewWriter()
 	tw.SetOutputMirror(t.Output)
-	tw.SetStyle(table.StyleLight)
+	tw.SetStyle(*customStyleLight())
 	tw.Style().Format.Header = text.FormatDefault
-	tw.Style().Options.SeparateRows = !t.SeparateRows
+	tw.Style().Options.SeparateRows = drawSeparateRowsLine
+	tw.Style().Options.DrawBorder = drawBorders
 
 	headerColumnIndices := t.processHeaders(tw, lines)
 	t.processRows(tw, lines, headerColumnIndices)
+
+	if !drawBorders {
+		tw.Style().Options.SeparateHeader = false
+		if len(headerColumnIndices) == 1 {
+			tw.Style().Box.PaddingLeft = ""
+		}
+	}
+
 	tw.Render()
 
 	return nil
@@ -458,6 +512,24 @@ func WithNoSeparateRows(sep bool) Option {
 	}
 }
 
+// WithNoDrawBorder disables the main border.
+func WithNoDrawBorder(bor bool) Option {
+	return func(t *Tablo) error {
+		t.DrawBorder = bor
+
+		return nil
+	}
+}
+
+// WithNoHeaders hides the headers.
+func WithNoHeaders(hide bool) Option {
+	return func(t *Tablo) error {
+		t.HideHeaders = hide
+
+		return nil
+	}
+}
+
 // WithFilterIndexes sets the filter index columns.
 func WithFilterIndexes(indexes string) Option {
 	return func(t *Tablo) error {
@@ -519,6 +591,12 @@ func Run() error {
 	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
 	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
 
+	noBorders := flag.Bool("no-borders", false, helpNoBorders)
+	flag.BoolVar(noBorders, "nb", false, helpNoBorders+" (short)")
+
+	noHeaders := flag.Bool("no-headers", false, helpNoHeaders)
+	flag.BoolVar(noHeaders, "nh", false, helpNoHeaders+" (short)")
+
 	filterIndexes := flag.String("filter-indexes", "", helpFilterIndexes)
 	flag.StringVar(filterIndexes, "fi", "", helpFilterIndexes+" (short)")
 
@@ -532,6 +610,8 @@ func Run() error {
 		WithLineDelimiter(*lineDelimiterChar),
 		WithFieldDelimiter(*fieldDelimiterChar),
 		WithNoSeparateRows(*noSeparateRows),
+		WithNoDrawBorder(*noBorders),
+		WithNoHeaders(*noHeaders),
 		WithFilterIndexes(*filterIndexes),
 	)
 	if err != nil {
