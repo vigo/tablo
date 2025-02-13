@@ -26,12 +26,12 @@ const (
 	breakTextForUnix    = "press ENTER and CTRL+D to finish text entry"
 	breakTextForWindows = "press CTRL+Z and ENTER to finish text entry"
 
-	helpOutput             = "where to send output"
+	helpOutput             = "where to send output, can be file path or stdout"
 	helpLineDelimiterChar  = "line delimiter char to split the input"
 	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
 	helpNoBorders          = "do not draw borders"
-	helpNoHeaders          = "do not show headers even if there is a match"
+	helpNoHeaders          = "hide headers line in filter by header result"
 	helpFilterIndexes      = "filter columns by index"
 
 	defaultOutput         = "stdout"
@@ -449,6 +449,25 @@ func WithReadInputFunc(fn ReadInputFunc) Option {
 	}
 }
 
+func parseSpecialChars(s string) rune {
+	switch s {
+	case "\\t", "\t":
+		return '\t'
+	case "\\n", "\n":
+		return '\n'
+	case "\\r", "\r":
+		return '\r'
+	case "\\b", "\b":
+		return '\b'
+	case "\\f", "\f":
+		return '\f'
+	case "\\a", "\a":
+		return '\a'
+	default:
+		return rune(s[0])
+	}
+}
+
 // WithLineDelimiter sets the line delimiter.
 func WithLineDelimiter(s string) Option {
 	return func(t *Tablo) error {
@@ -456,20 +475,7 @@ func WithLineDelimiter(s string) Option {
 			return fmt.Errorf("%w, line delimiter is empty string", ErrValueRequired)
 		}
 
-		var delimiter rune
-
-		switch s {
-		case "\n":
-			delimiter = '\n'
-		case "\r":
-			delimiter = '\r'
-		case "\t":
-			delimiter = '\t'
-		default:
-			delimiter = rune(s[0])
-		}
-
-		t.LineDelimiter = delimiter
+		t.LineDelimiter = parseSpecialChars(s)
 
 		return nil
 	}
@@ -484,20 +490,7 @@ func WithFieldDelimiter(s string) Option {
 			return nil
 		}
 
-		var delimiter rune
-
-		switch s {
-		case "\f":
-			delimiter = '\f'
-		case "\v":
-			delimiter = '\v'
-		case "\t":
-			delimiter = '\t'
-		default:
-			delimiter = rune(s[0])
-		}
-
-		t.FieldDelimiter = delimiter
+		t.FieldDelimiter = parseSpecialChars(s)
 
 		return nil
 	}
@@ -577,16 +570,14 @@ func New(options ...Option) (*Tablo, error) {
 // Run runs the command.
 func Run() error {
 	flag.Usage = getUsage
-	output := flag.String("output", defaultOutput, helpOutput)
-	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
 
 	version := flag.Bool("version", false, "display version information")
 
-	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
-	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
-
 	fieldDelimiterChar := flag.String("field-delimiter-char", string(defaultFieldDelimiter), helpFieldDelimiterChar)
 	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimiter), helpFieldDelimiterChar+" (short)")
+
+	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
+	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
 
 	noSeparateRows := flag.Bool("no-separate-rows", false, helpNoSeparateRows)
 	flag.BoolVar(noSeparateRows, "n", false, helpNoSeparateRows+" (short)")
@@ -599,6 +590,9 @@ func Run() error {
 
 	filterIndexes := flag.String("filter-indexes", "", helpFilterIndexes)
 	flag.StringVar(filterIndexes, "fi", "", helpFilterIndexes+" (short)")
+
+	output := flag.String("output", defaultOutput, helpOutput)
+	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
 
 	flag.Parse()
 

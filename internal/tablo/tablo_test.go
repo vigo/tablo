@@ -173,6 +173,69 @@ func TestTablo_Tabelize_SingleString(t *testing.T) {
 	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
 }
 
+func TestTablo_Tabelize_SingleString_With_TAB_LineDelimiter(t *testing.T) {
+	input := bytes.NewBufferString("hello\tworld")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithLineDelimiter("\t"),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+	expectedOutput := "┌───────┐\n│ hello │\n├───────┤\n│ world │\n└───────┘\n"
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
+func TestTablo_Tabelize_SingleString_With_R_LineDelimiter(t *testing.T) {
+	input := bytes.NewBufferString("hello\rworld")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithLineDelimiter("\r"),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+	expectedOutput := "┌───────┐\n│ hello │\n├───────┤\n│ world │\n└───────┘\n"
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
+func TestTablo_Tabelize_SingleString_No_Borders(t *testing.T) {
+	input := bytes.NewBufferString("hello\nworld")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithNoDrawBorder(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+	expectedOutput := " hello \n world \n"
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
 func TestTablo_Tabelize_WithFieldDelimiter(t *testing.T) {
 	input := bytes.NewBufferString("hello1|world1\n")
 	output := new(BytesWriteCloser)
@@ -455,6 +518,102 @@ superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958M
 	assert.Equal(t, expectedOutput, output.String())
 }
 
+func TestTablo_Tabelize_Docker_Images_Filter_By_Header_With_No_Border(t *testing.T) {
+	input := bytes.NewBufferString(`REPOSITORY                         TAG       IMAGE ID       CREATED         SIZE
+superset-superset-worker-beat      latest    3292fc2e6758   2 weeks ago     958MB
+superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958MB
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithArgs([]string{"REPOSITORY"}),
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(" "),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoDrawBorder(true),
+		tablo.WithNoSeparateRows(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `REPOSITORY                    
+superset-superset-worker-beat 
+superset-superset-worker      
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Tabelize_Docker_Images_Filter_By_Header_With_No_Border_With_No_Header(t *testing.T) {
+	input := bytes.NewBufferString(`REPOSITORY                         TAG       IMAGE ID       CREATED         SIZE
+superset-superset-worker-beat      latest    3292fc2e6758   2 weeks ago     958MB
+superset-superset-worker           latest    d25cbcc60691   2 weeks ago     958MB
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithArgs([]string{"REPOSITORY"}),
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(" "),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoDrawBorder(true),
+		tablo.WithNoHeaders(true),
+		tablo.WithNoSeparateRows(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `superset-superset-worker-beat 
+superset-superset-worker      
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Run_Returns_Error(t *testing.T) {
+	os.Args = []string{"tablo", "-l", ""}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := tablo.Run()
+	assert.Error(t, err)
+	_ = w.Close()
+	os.Stdout = oldStdout
+}
+
 func TestTablo_Run_Read_Input_From_File(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test.txt")
 	assert.NoError(t, err)
@@ -532,6 +691,72 @@ C64         street tuff       tRSI`
 │ AMIGA │
 │ AMIGA │
 │ C64   │
+└───────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Run_Read_Input_From_File_TAB_as_LineDelimiter(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	content := "hello\tworld"
+
+	_, err = tmpFile.WriteString(content)
+	assert.NoError(t, err)
+	_ = tmpFile.Close()
+
+	os.Args = []string{"tablo", "-n", "-l", "\t", tmpFile.Name()}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	expectedOutput := `┌───────┐
+│ hello │
+│ world │
+└───────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Run_Read_Input_From_File_R_as_LineDelimiter(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	content := "hello\rworld"
+
+	_, err = tmpFile.WriteString(content)
+	assert.NoError(t, err)
+	_ = tmpFile.Close()
+
+	os.Args = []string{"tablo", "-n", "-l", "\r", tmpFile.Name()}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	expectedOutput := `┌───────┐
+│ hello │
+│ world │
 └───────┘
 `
 	assert.Equal(t, expectedOutput, output.String())

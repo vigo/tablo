@@ -11,15 +11,15 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   flags:
 
   -version                          display version information (%s)
-  -f, -field-delimiter-char         field delimiter char to split the line input
+  -f, -field-delimiter-char         %s
                                     (default: "%s")
-  -l, -line-delimiter-char          line delimiter char to split the input
+  -l, -line-delimiter-char          %s
                                     (default: "\n")
-  -n, -no-separate-rows             do not draw separation line under rows
-  -nb, -no-borders                  do not draw borders
-  -nh, -no-headers                  do not show headers even if there is a match
-  -fi, -filter-indexes              filter columns by index
-  -o, -output                       where to send output
+  -n, -no-separate-rows             %s
+  -nb, -no-borders                  %s
+  -nh, -no-headers                  %s
+  -fi, -filter-indexes              %s
+  -o, -output                       %s
                                     (default "stdout")
 
   examples:
@@ -65,7 +65,14 @@ func getUsage() {
 	args := []any{
 		binaryName,
 		versionInformation,
+		helpFieldDelimiterChar,
 		string(defaultFieldDelimiter),
+		helpLineDelimiterChar,
+		helpNoSeparateRows,
+		helpNoBorders,
+		helpNoHeaders,
+		helpFilterIndexes,
+		helpOutput,
 	}
 	fmt.Fprintf(os.Stdout, usage, args...)
 

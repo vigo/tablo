@@ -33,9 +33,9 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
   -nb, -no-borders                  do not draw borders
-  -nh, -no-headers                  do not show headers even if there is a match
+  -nh, -no-headers                  hide headers line in filter by header result
   -fi, -filter-indexes              filter columns by index
-  -o, -output                       where to send output
+  -o, -output                       where to send output, can be file path or stdout
                                     (default "stdout")
 
   examples:
@@ -310,14 +310,20 @@ rake test            # run test
 
 **2025-02-02**
 
-- add `json`, `csv` support
-- add `json`, `csv` filtering
+- add `json` support
+- add `json` filtering
 - add sorting such as `-sort <FIELD>`
 - add `ls` support, such as `-where -size > 10mb`, `-sort ...`
 
 ---
 
 ## Change Log
+
+**2025-02-13**
+
+- better line delimiter handling
+- improve test coverage
+- add `-nb`, `-nh` flags
 
 **2025-02-05**
 
