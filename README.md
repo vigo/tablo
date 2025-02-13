@@ -22,7 +22,6 @@ go install github.com/vigo/tablo@latest
 Command line args:
 
 ```bash
-tablo -h
 usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   flags:
@@ -33,8 +32,10 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   -l, -line-delimiter-char          line delimiter char to split the input
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
+  -nb, -no-borders                  do not draw borders
+  -nh, -no-headers                  hide headers line in filter by header result
   -fi, -filter-indexes              filter columns by index
-  -o, -output                       where to send output
+  -o, -output                       where to send output, can be file path or stdout
                                     (default "stdout")
 
   examples:
@@ -47,6 +48,8 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ cat /etc/passwd | tablo -f ":"
   $ cat /etc/passwd | tablo -f ":" -n
   $ cat /etc/passwd | tablo -n -f ":" -fi "1,5"   # show columns 1 and 5 only
+  $ cat /etc/passwd | tablo -n -f ":" -nb nobody  # list users only (macos)
+  $ cat /etc/passwd | tablo -n -f ":" -nb root    # list users only (linux)
   $ docker images | tablo
   $ docker images | tablo REPOSITORY              # show only REPOSITORY colum
   $ docker images | tablo REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
@@ -56,6 +59,13 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   # use default file redirection
   $ docker images | tablo REPOSITORY "IMAGE ID" > /path/to/docker-images.txt
+
+  # csv files
+  $ cat /path/to/file.csv | tablo -f ";"
+  $ cat /path/to/file.csv | tablo -f ";" -n
+  $ cat /path/to/file.csv | tablo -f ";" -n -nb
+  $ cat /path/to/file.csv | tablo -f ";" -n -nb -nh
+  $ cat /path/to/file.csv | tablo -f ";" -n -nb -nh <HEADER>
 
 ```
 
@@ -106,6 +116,11 @@ cat /tmp/foo | tablo -n
 │ this is line 2 │
 │ this is line   │
 └────────────────┘
+
+cat /tmp/foo | go run . -n -nb
+this is line 1    
+this is line 2    
+this is line
 ```
 
 Or check your `/etc/passwd`, use `-f` or `-field-delimiter-char` flag for
@@ -191,6 +206,80 @@ docker images | tablo -n REPOSITORY "IMAGE ID"
 │ vigo/basichttpdebugger                                │ 911f45e85b68 │
 │ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ b72784c93710 │
 └───────────────────────────────────────────────────────┴──────────────┘
+
+docker images | tablo -n -nb REPOSITORY "IMAGE ID"
+ REPOSITORY                                            │ IMAGE ID     
+ vigo/basichttpdebugger                                │ 911f45e85b68 
+ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ b72784c93710 
+
+docker images | tablo -n -nb -nh REPOSITORY "IMAGE ID"
+ vigo/basichttpdebugger                                │ 911f45e85b68 
+ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ b72784c93710 
+```
+
+You have a `users.csv` file:
+
+    Username;Identifier;First name;Last name
+    booker12;9012;Rachel;Booker
+    grey07;2070;Laura;Grey
+    johnson81;4081;Craig;Johnson
+    jenkins46;9346;Mary;Jenkins
+    smith79;5079;Jamie;Smith
+
+and you can;
+
+```bash
+cat /path/to/username.csv | tablo -f ";"
+┌───────────┬────────────┬────────────┬───────────┐
+│ Username  │ Identifier │ First name │ Last name │
+├───────────┼────────────┼────────────┼───────────┤
+│ booker12  │ 9012       │ Rachel     │ Booker    │
+├───────────┼────────────┼────────────┼───────────┤
+│ grey07    │ 2070       │ Laura      │ Grey      │
+├───────────┼────────────┼────────────┼───────────┤
+│ johnson81 │ 4081       │ Craig      │ Johnson   │
+├───────────┼────────────┼────────────┼───────────┤
+│ jenkins46 │ 9346       │ Mary       │ Jenkins   │
+├───────────┼────────────┼────────────┼───────────┤
+│ smith79   │ 5079       │ Jamie      │ Smith     │
+└───────────┴────────────┴────────────┴───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n
+┌───────────┬────────────┬────────────┬───────────┐
+│ Username  │ Identifier │ First name │ Last name │
+│ booker12  │ 9012       │ Rachel     │ Booker    │
+│ grey07    │ 2070       │ Laura      │ Grey      │
+│ johnson81 │ 4081       │ Craig      │ Johnson   │
+│ jenkins46 │ 9346       │ Mary       │ Jenkins   │
+│ smith79   │ 5079       │ Jamie      │ Smith     │
+└───────────┴────────────┴────────────┴───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n username
+┌───────────┐
+│ Username  │
+├───────────┤
+│ booker12  │
+│ grey07    │
+│ johnson81 │
+│ jenkins46 │
+│ smith79   │
+└───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n -nh username
+┌───────────┐
+│ booker12  │
+│ grey07    │
+│ johnson81 │
+│ jenkins46 │
+│ smith79   │
+└───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n -nb -nh username
+booker12  
+grey07    
+johnson81 
+jenkins46 
+smith79 
 ```
 
 You can set output for save:
@@ -221,14 +310,20 @@ rake test            # run test
 
 **2025-02-02**
 
-- add `json`, `csv` support
-- add `json`, `csv` filtering
+- add `json` support
+- add `json` filtering
 - add sorting such as `-sort <FIELD>`
 - add `ls` support, such as `-where -size > 10mb`, `-sort ...`
 
 ---
 
 ## Change Log
+
+**2025-02-13**
+
+- better line delimiter handling
+- improve test coverage
+- add `-nb`, `-nh` flags
 
 **2025-02-05**
 
