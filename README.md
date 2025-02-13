@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.0.3-orange.svg)
+![Version](https://img.shields.io/badge/version-0.0.4-orange.svg)
 [![Documentation](https://godoc.org/github.com/vigo/tablo?status.svg)](https://pkg.go.dev/github.com/vigo/tablo)
 [![Run go tests](https://github.com/vigo/tablo/actions/workflows/go-test.yml/badge.svg)](https://github.com/vigo/tablo/actions/workflows/go-test.yml)
 [![Run golangci-lint](https://github.com/vigo/tablo/actions/workflows/go-lint.yml/badge.svg)](https://github.com/vigo/tablo/actions/workflows/go-lint.yml)
