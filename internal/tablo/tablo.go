@@ -116,7 +116,7 @@ type ReadInputFunc func(io.Reader) (string, error)
 func isFile(filename string) error {
 	fileInfo, err := os.Stat(filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w", err)
 	}
 
 	fileMode := fileInfo.Mode()
@@ -131,7 +131,7 @@ func readInput(input io.Reader) (string, error) {
 	r := bufio.NewReader(input)
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%w", err)
 	}
 
 	if len(b) == 0 {
@@ -185,7 +185,7 @@ var (
 func (t *Tablo) parseArgs() (string, error) {
 	finfo, finfoErr := os.Stdin.Stat()
 	if finfoErr != nil {
-		return "", finfoErr
+		return "", fmt.Errorf("%w", finfoErr)
 	}
 
 	if len(t.Args) == 0 || (len(t.Args) > 0 && IsNamedPipe(finfo)) {
@@ -211,7 +211,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 	if fileArg != "" {
 		file, errF := os.Open(filepath.Clean(fileArg))
 		if errF != nil {
-			return nil, errF
+			return nil, fmt.Errorf("%w", errF)
 		}
 
 		readFrom = file
@@ -220,7 +220,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 	if readFrom == os.Stdin {
 		finfo, finfoErr := os.Stdin.Stat()
 		if finfoErr != nil {
-			return nil, finfoErr
+			return nil, fmt.Errorf("%w", finfoErr)
 		}
 
 		if IsCharDevice(finfo) {
@@ -542,7 +542,6 @@ func WithFilterIndexes(indexes string) Option {
 				if n > 0 {
 					idxes[i] = n - 1
 				}
-
 			}
 
 			t.FilterIndexes = idxes
@@ -569,7 +568,7 @@ func New(options ...Option) (*Tablo, error) {
 
 // Run runs the command.
 func Run() error {
-	flag.Usage = getUsage
+	flag.Usage = showUsage
 
 	version := flag.Bool("version", false, "display version information")
 
@@ -594,7 +593,7 @@ func Run() error {
 	output := flag.String("output", defaultOutput, helpOutput)
 	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
 
-	flag.Parse()
+	flag.Parse() //nolint:revive
 
 	tbl, err := New(
 		WithArgs(flag.Args()),

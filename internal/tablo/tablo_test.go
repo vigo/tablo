@@ -2,8 +2,10 @@ package tablo_test
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"io"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -772,7 +774,7 @@ func TestTablo_Run_Read_Input_From_Non_Existing_File(t *testing.T) {
 
 	err := tablo.Run()
 	assert.Error(t, err)
-	assert.True(t, os.IsNotExist(err))
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
 	_ = w.Close()
 	os.Stderr = oldStderr
 }

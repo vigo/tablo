@@ -53,7 +53,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
 
 `
 
-func getUsage() {
+func showUsage() {
 	binaryName := os.Args[0]
 	versionInformation := Version
 
