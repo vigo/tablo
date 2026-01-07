@@ -569,6 +569,7 @@ func New(options ...Option) (*Tablo, error) {
 // Run runs the command.
 func Run() error {
 	flag.Usage = showUsage
+	flag.CommandLine.Usage = showUsage
 
 	version := flag.Bool("version", false, "display version information")
 
@@ -593,7 +594,9 @@ func Run() error {
 	output := flag.String("output", defaultOutput, helpOutput)
 	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
 
-	flag.Parse() //nolint:revive
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return fmt.Errorf("%w", err)
+	}
 
 	tbl, err := New(
 		WithArgs(flag.Args()),

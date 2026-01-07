@@ -74,7 +74,7 @@ func showUsage() {
 		helpFilterIndexes,
 		helpOutput,
 	}
-	fmt.Fprintf(os.Stdout, usage, args...)
+	fmt.Fprintf(flag.CommandLine.Output(), usage, args...)
 
 	if os.Getenv("PRINT_DEFAULTS") != "" {
 		flag.PrintDefaults()

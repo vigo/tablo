@@ -809,3 +809,17 @@ func TestRun_ReadFromFile_SaveToFile(t *testing.T) {
 `
 	assert.Equal(t, expectedOutput, string(result))
 }
+
+func TestRun_ShowUsage_WithHelpFlag(t *testing.T) {
+	os.Args = []string{"tablo", "-h"}
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+
+	var buf bytes.Buffer
+	flag.CommandLine.SetOutput(&buf)
+
+	err := tablo.Run()
+
+	assert.ErrorIs(t, err, flag.ErrHelp)
+	assert.Contains(t, buf.String(), "usage:")
+	assert.Contains(t, buf.String(), "tablo")
+}
