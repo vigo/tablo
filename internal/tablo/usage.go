@@ -53,7 +53,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
 
 `
 
-func getUsage() {
+func showUsage() {
 	binaryName := os.Args[0]
 	versionInformation := Version
 
@@ -74,7 +74,7 @@ func getUsage() {
 		helpFilterIndexes,
 		helpOutput,
 	}
-	fmt.Fprintf(os.Stdout, usage, args...)
+	fmt.Fprintf(flag.CommandLine.Output(), usage, args...)
 
 	if os.Getenv("PRINT_DEFAULTS") != "" {
 		flag.PrintDefaults()

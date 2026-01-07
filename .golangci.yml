@@ -1,45 +1,55 @@
-run:
-  timeout: 1m
-  concurrency: 4
-  modules-download-mode: readonly
+version: "2"
 
 linters:
   enable:
-    - staticcheck
-    - typecheck
     - errcheck
-    - errorlint
     - govet
-    - goconst
-    - gocritic
-    - gocyclo
-    - godot
-    - godox
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gosec
+    - revive
+    - wrapcheck
+  settings:
+    revive:
+      enable-all-rules: true
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: cyclomatic
+          disabled: true
+        - name: function-length
+          disabled: true
+        - name: line-length-limit
+          arguments: [120, 1]
+        - name: enforce-switch-style
+          arguments: ["allowNoDefault"]
+        - name: add-constant
+          arguments:
+            - max-lit-count: "10"
+              allow-strs: '"","could not generate %s file, %w"'
+              allow-ints: "0,1,2,10,30,64,100"
+              allow-floats: "0.0,0.,1.0,1.,2.0,2."
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        - fmt.Fprintln
+        - fmt.Fprintf
+
+formatters:
+  enable:
     - gofmt
     - gofumpt
     - goimports
-    - gomoddirectives
-    - gosec
-    - gosimple
-    - ineffassign
-    - unparam
-    - unused
-    - makezero
-    - nilerr
-    - revive
+    - golines
+  settings:
+    golines:
+      max-len: 120
 
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - fmt.Fprintln
-      - fmt.Fprintf
-  govet:
-    enable-all: true
-    settings:
-      shadow:
-        strict: true
-
-issues:
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+run:
+  concurrency: 4
+  timeout: 1m
+  tests: false
