@@ -15,6 +15,15 @@ element is data and everything flows seamlessly through pipes.
 
 ## Installation
 
+### Via Homebrew
+
+```bash
+brew tap vigo/tablo
+brew install tablo
+```
+
+### Via Go
+
 ```bash
 go install github.com/vigo/tablo@latest
 ```
