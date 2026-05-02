@@ -55,10 +55,6 @@ func spaceSplitter(spaceAmount int) *regexp.Regexp {
 	return regexp.MustCompile(`\s{` + strconv.Itoa(spaceAmount) + `,}`)
 }
 
-func charSplitter(char rune) *regexp.Regexp {
-	return regexp.MustCompile(regexp.QuoteMeta(string(char)))
-}
-
 func customStyleLight() *table.Style {
 	return &table.Style{
 		Name: "CustomStyleLight",
@@ -231,7 +227,7 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 	if t.FieldDelimiter == 0 {
 		headers = spaceSplitter(defaultSpaceAmount).Split(lines[0], -1)
 	} else {
-		headers = charSplitter(t.FieldDelimiter).Split(lines[0], -1)
+		headers = strings.Split(lines[0], string(t.FieldDelimiter))
 	}
 
 	for _, arg := range t.Args {
@@ -277,7 +273,7 @@ func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int
 		if t.FieldDelimiter == 0 {
 			fields = spaceSplitter(defaultSpaceAmount).Split(line, -1)
 		} else {
-			fields = charSplitter(t.FieldDelimiter).Split(line, -1)
+			fields = strings.Split(line, string(t.FieldDelimiter))
 		}
 
 		var selectedFields []string
