@@ -37,7 +37,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   -version                          display version information (X.X.X)
   -f, -field-delimiter-char         field delimiter char to split the line input
-                                    (default: " ")
+                                    (omit for smart split: 2+ whitespace)
   -l, -line-delimiter-char          line delimiter char to split the input
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
@@ -52,6 +52,8 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ tablo                                         # interactive mode
   $ echo "${PATH}" | tablo -l ":"
   $ echo "${PATH}" | tablo -l ":" -n
+  $ echo "foo bar" | tablo -f " "                 # exact split: 2 cells
+  $ echo "foo  bar" | tablo                       # smart split: 2 cells (no -f)
   $ cat /path/to/file | tablo
   $ cat /path/to/file | tablo -n
   $ cat /etc/passwd | tablo -f ":"
@@ -130,6 +132,40 @@ cat /tmp/foo | go run . -n -nb
 this is line 1    
 this is line 2    
 this is line
+```
+
+### Field Delimiter Modes
+
+`tablo` has two field-splitting modes:
+
+- **Smart mode** (when `-f` is omitted): splits on **2 or more consecutive
+  whitespace characters**. This is ideal for aligned column output from tools
+  like `docker images`, `ps aux`, `ls -l`, where cell values may contain a
+  single space (e.g. `"2 weeks ago"`, `"Up 22 hours"`).
+- **Exact mode** (when `-f <char>` is given): splits on **each occurrence** of
+  the given character. Consecutive delimiters preserve empty cells, matching
+  CSV semantics.
+
+Example contrasting both modes:
+
+```bash
+# smart mode (no -f)
+echo "foo  bar" | tablo
+┌─────┬─────┐
+│ foo │ bar │
+└─────┴─────┘
+
+# exact mode (-f " " forces single-space split)
+echo "foo bar" | tablo -f " "
+┌─────┬─────┐
+│ foo │ bar │
+└─────┴─────┘
+
+# exact mode preserves empty cells from consecutive delimiters
+echo "a:b::c" | tablo -f ":"
+┌───┬───┬──┬───┐
+│ a │ b │  │ c │
+└───┴───┴──┴───┘
 ```
 
 Or check your `/etc/passwd`, use `-f` or `-field-delimiter-char` flag for
@@ -327,6 +363,19 @@ rake test            # run test
 ---
 
 ## Change Log
+
+**2026-05-02**
+
+- **breaking:** `-f <char>` now splits on each occurrence of the delimiter
+  (exact mode); consecutive delimiters preserve empty cells. Previously, `-f`
+  used a "longest-run" rule that collapsed runs of the same character into a
+  single delimiter and required `-f " "` to behave like 2+ whitespace.
+- smart split (2+ whitespace) is now triggered by **omitting** `-f` instead of
+  passing `-f " "`. Pipe-from-aligned-output workflows
+  (`docker images | tablo`, `ps aux | tablo`) keep working without any `-f`
+  flag.
+- remove `maxConsecutiveRepeats` heuristic; clarify field-delimiter help text;
+  document field-delimiter modes in README.
 
 **2025-02-13**
 

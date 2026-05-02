@@ -12,7 +12,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
 
   -version                          display version information (%s)
   -f, -field-delimiter-char         %s
-                                    (default: "%s")
+                                    (omit for smart split: 2+ whitespace)
   -l, -line-delimiter-char          %s
                                     (default: "\n")
   -n, -no-separate-rows             %s
@@ -27,6 +27,8 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ %[1]s                                         # interactive mode
   $ echo "${PATH}" | %[1]s -l ":"
   $ echo "${PATH}" | %[1]s -l ":" -n
+  $ echo "foo bar" | %[1]s -f " "                 # exact split: 2 cells
+  $ echo "foo  bar" | %[1]s                       # smart split: 2 cells (no -f)
   $ cat /path/to/file | %[1]s
   $ cat /path/to/file | %[1]s -n
   $ cat /etc/passwd | %[1]s -f ":"
@@ -66,7 +68,6 @@ func showUsage() {
 		binaryName,
 		versionInformation,
 		helpFieldDelimiterChar,
-		string(defaultFieldDelimiter),
 		helpLineDelimiterChar,
 		helpNoSeparateRows,
 		helpNoBorders,
