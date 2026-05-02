@@ -34,10 +34,9 @@ const (
 	helpNoHeaders          = "hide headers line in filter by header result"
 	helpFilterIndexes      = "filter columns by index"
 
-	defaultOutput         = "stdout"
-	defaultFieldDelimiter = ' '
-	defaultLineDelimiter  = '\n'
-	defaultSpaceAmount    = 2
+	defaultOutput        = "stdout"
+	defaultLineDelimiter = '\n'
+	defaultSpaceAmount   = 2
 )
 
 // sentinel errors.
@@ -54,24 +53,6 @@ type Tablizer interface {
 
 func spaceSplitter(spaceAmount int) *regexp.Regexp {
 	return regexp.MustCompile(`\s{` + strconv.Itoa(spaceAmount) + `,}`)
-}
-
-func charSplitter(char rune, minRepeat int) *regexp.Regexp {
-	pattern := regexp.QuoteMeta(string(char)) + "{" + strconv.Itoa(minRepeat) + ",}"
-	return regexp.MustCompile(pattern)
-}
-
-func maxConsecutiveRepeats(s string, delimiter rune) int {
-	pattern := regexp.MustCompile(regexp.QuoteMeta(string(delimiter)) + "+")
-	matches := pattern.FindAllString(s, -1)
-
-	maxCount := 1
-	for _, match := range matches {
-		if len(match) > maxCount {
-			maxCount = len(match)
-		}
-	}
-	return maxCount
 }
 
 func customStyleLight() *table.Style {
@@ -243,11 +224,10 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 	var headers []string
 	var columnIndices []int
 
-	if t.FieldDelimiter == ' ' {
+	if t.FieldDelimiter == 0 {
 		headers = spaceSplitter(defaultSpaceAmount).Split(lines[0], -1)
 	} else {
-		repeatAmount := maxConsecutiveRepeats(lines[0], t.FieldDelimiter)
-		headers = charSplitter(t.FieldDelimiter, repeatAmount).Split(lines[0], -1)
+		headers = strings.Split(lines[0], string(t.FieldDelimiter))
 	}
 
 	for _, arg := range t.Args {
@@ -290,11 +270,10 @@ func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int
 		}
 		var fields []string
 
-		if t.FieldDelimiter == ' ' {
+		if t.FieldDelimiter == 0 {
 			fields = spaceSplitter(defaultSpaceAmount).Split(line, -1)
 		} else {
-			repeatAmount := maxConsecutiveRepeats(line, t.FieldDelimiter)
-			fields = charSplitter(t.FieldDelimiter, repeatAmount).Split(line, -1)
+			fields = strings.Split(line, string(t.FieldDelimiter))
 		}
 
 		var selectedFields []string
@@ -573,8 +552,8 @@ func Run() error {
 
 	version := flag.Bool("version", false, "display version information")
 
-	fieldDelimiterChar := flag.String("field-delimiter-char", string(defaultFieldDelimiter), helpFieldDelimiterChar)
-	flag.StringVar(fieldDelimiterChar, "f", string(defaultFieldDelimiter), helpFieldDelimiterChar+" (short)")
+	fieldDelimiterChar := flag.String("field-delimiter-char", "", helpFieldDelimiterChar)
+	flag.StringVar(fieldDelimiterChar, "f", "", helpFieldDelimiterChar+" (short)")
 
 	lineDelimiterChar := flag.String("line-delimiter-char", string(defaultLineDelimiter), helpLineDelimiterChar)
 	flag.StringVar(lineDelimiterChar, "l", string(defaultLineDelimiter), helpLineDelimiterChar+" (short)")
