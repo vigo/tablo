@@ -204,6 +204,42 @@ func (t *Tablo) selectFields(fields []string, columnIndices []int) []string {
 	return selectedFields
 }
 
+func isHeaderLikeField(field string) bool {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return false
+	}
+
+	for i, r := range field {
+		switch {
+		case r == ' ' || r == '_' || r == '-':
+			continue
+		case i == 0 && (r < 'A' || (r > 'Z' && r < 'a') || r > 'z'):
+			return false
+		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			continue
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
+func looksLikeHeader(fields []string) bool {
+	if len(fields) <= 1 {
+		return false
+	}
+
+	for _, field := range fields {
+		if !isHeaderLikeField(field) {
+			return false
+		}
+	}
+
+	return true
+}
+
 type jsonDataset struct {
 	headers   []string
 	rows      [][]string
@@ -212,17 +248,21 @@ type jsonDataset struct {
 
 func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
 	if len(lines) == 0 {
-		return jsonDataset{}
+		return jsonDataset{
+			rows: [][]string{},
+		}
 	}
 
 	headers := t.splitFields(lines[0])
 	columnIndices := t.selectColumnIndices(headers)
 
-	dataset := jsonDataset{}
-	if len(columnIndices) > 0 {
+	dataset := jsonDataset{
+		rows: make([][]string, 0, len(lines)),
+	}
+	if len(t.FilterIndexes) == 0 && len(columnIndices) > 0 {
 		dataset.headers = pickFieldsByIndices(headers, columnIndices)
 		dataset.hasHeader = true
-	} else if len(lines) > 1 && len(t.FilterIndexes) == 0 {
+	} else if len(t.FilterIndexes) == 0 && looksLikeHeader(headers) {
 		dataset.headers = headers
 		dataset.hasHeader = true
 	}

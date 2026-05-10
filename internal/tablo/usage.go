@@ -21,7 +21,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   -fi, -filter-indexes              %s
   -j, -json                         %s
   -o, -output                       %s
-                                     (default "stdout")
+                                    (default "stdout")
 
   examples:
 

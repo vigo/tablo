@@ -948,6 +948,71 @@ func TestRun_ReadFromFile_SaveToJSONFile(t *testing.T) {
 	assert.Equal(t, expectedOutput, string(result))
 }
 
+func TestTablo_Tabelize_JSONOutput_WithoutHeaderRow_KeepsFirstRow(t *testing.T) {
+	input := bytes.NewBufferString("nobody:*:-2:-2:Unprivileged User:/var/empty:/usr/bin/false\nroot:*:0:0:System Administrator:/var/root:/bin/sh\n")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(":"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithJSONOutput(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `[
+  [
+    "nobody",
+    "*",
+    "-2",
+    "-2",
+    "Unprivileged User",
+    "/var/empty",
+    "/usr/bin/false"
+  ],
+  [
+    "root",
+    "*",
+    "0",
+    "0",
+    "System Administrator",
+    "/var/root",
+    "/bin/sh"
+  ]
+]
+`
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
+func TestTablo_Tabelize_JSONOutput_EmptyInput_ReturnsArray(t *testing.T) {
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithJSONOutput(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return "", nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "[]\n", string(output.nonStdinValue()))
+}
+
 func TestTablo_Tabelize_FieldDelimiter_Space_ExactSplit(t *testing.T) {
 	input := bytes.NewBufferString("foo bar\n")
 	output := new(BytesWriteCloser)
