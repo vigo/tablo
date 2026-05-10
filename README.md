@@ -44,6 +44,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   -nb, -no-borders                  do not draw borders
   -nh, -no-headers                  hide headers line in filter by header result
   -fi, -filter-indexes              filter columns by index
+  -j, -json                         render output as json
   -o, -output                       where to send output, can be file path or stdout
                                     (default "stdout")
 
@@ -64,6 +65,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ docker images | tablo
   $ docker images | tablo REPOSITORY              # show only REPOSITORY colum
   $ docker images | tablo REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
+  $ docker images | tablo -j                       # render rows as json
 
   # save output to a file
   $ docker images | tablo -o /path/to/docker-images.txt REPOSITORY "IMAGE ID"
@@ -221,6 +223,24 @@ docker images | tablo
 ├───────────────────────────────────────────────────────┼────────┼──────────────┼──────────────┼────────┤
 │ ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger │ latest │ b72784c93710 │ 22 hours ago │ 12.7MB │
 └───────────────────────────────────────────────────────┴────────┴──────────────┴──────────────┴────────┘
+
+docker images | tablo -j
+[
+  {
+    "REPOSITORY": "vigo/basichttpdebugger",
+    "TAG": "latest",
+    "IMAGE ID": "911f45e85b68",
+    "CREATED": "22 hours ago",
+    "SIZE": "12.7MB"
+  },
+  {
+    "REPOSITORY": "ghcr.io/vbyazilim/basichttpdebugger/basichttpdebugger",
+    "TAG": "latest",
+    "IMAGE ID": "b72784c93710",
+    "CREATED": "22 hours ago",
+    "SIZE": "12.7MB"
+  }
+]
 ```
 
 You can also filter if your input has a kind of header row:
@@ -355,14 +375,17 @@ rake test            # run test
 
 **2025-02-02**
 
-- add `json` support
-- add `json` filtering
 - add sorting such as `-sort <FIELD>`
 - add `ls` support, such as `-where -size > 10mb`, `-sort ...`
 
 ---
 
 ## Change Log
+
+**2026-05-10**
+
+- add `-j` / `-json` output mode
+- emit arrays of objects when input has a header row, otherwise arrays of arrays
 
 **2026-05-02**
 

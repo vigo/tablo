@@ -851,6 +851,103 @@ func TestRun_ReadFromFile_SaveToFile(t *testing.T) {
 	assert.Equal(t, expectedOutput, string(result))
 }
 
+func TestTablo_Tabelize_JSONOutput_WithHeaders(t *testing.T) {
+	input := bytes.NewBufferString("name|age\nvigo|42\njohn|7\n")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter("|"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithJSONOutput(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `[
+  {
+    "name": "vigo",
+    "age": "42"
+  },
+  {
+    "name": "john",
+    "age": "7"
+  }
+]
+`
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
+func TestTablo_Tabelize_JSONOutput_WithoutHeaders(t *testing.T) {
+	input := bytes.NewBufferString("hello|world\n")
+	output := new(BytesWriteCloser)
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter("|"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithFilterIndexes("2,1"),
+		tablo.WithJSONOutput(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `[
+  [
+    "world",
+    "hello"
+  ]
+]
+`
+	assert.Equal(t, expectedOutput, string(output.nonStdinValue()))
+}
+
+func TestRun_ReadFromFile_SaveToJSONFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test_input.txt")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	_, err = tmpFile.WriteString("name|age\nvigo|42\n")
+	assert.NoError(t, err)
+	_ = tmpFile.Close()
+
+	outputFile, err := os.CreateTemp("", "output.json")
+	assert.NoError(t, err)
+	defer func() { _ = os.Remove(outputFile.Name()) }()
+
+	os.Args = []string{"tablo", "-j", "-f", "|", "-o", outputFile.Name(), tmpFile.Name()}
+	resetFlags()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+
+	result, err := os.ReadFile(outputFile.Name())
+	assert.NoError(t, err)
+
+	expectedOutput := `[
+  {
+    "name": "vigo",
+    "age": "42"
+  }
+]
+`
+	assert.Equal(t, expectedOutput, string(result))
+}
+
 func TestTablo_Tabelize_FieldDelimiter_Space_ExactSplit(t *testing.T) {
 	input := bytes.NewBufferString("foo bar\n")
 	output := new(BytesWriteCloser)
