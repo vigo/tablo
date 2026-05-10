@@ -5,6 +5,8 @@ package tablo
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,6 +27,7 @@ var _ Tablizer = (*Tablo)(nil) // compile time proof
 const (
 	breakTextForUnix    = "press ENTER and CTRL+D to finish text entry"
 	breakTextForWindows = "press CTRL+Z and ENTER to finish text entry"
+	errorWrapFormat     = "%w"
 
 	helpOutput             = "where to send output, can be file path or stdout"
 	helpLineDelimiterChar  = "line delimiter char to split the input"
@@ -33,6 +36,7 @@ const (
 	helpNoBorders          = "do not draw borders"
 	helpNoHeaders          = "hide headers line in filter by header result"
 	helpFilterIndexes      = "filter columns by index"
+	helpJSONOutput         = "render output as json"
 
 	defaultOutput        = "stdout"
 	defaultLineDelimiter = '\n'
@@ -97,7 +101,7 @@ type ReadInputFunc func(io.Reader) (string, error)
 func isFile(filename string) error {
 	fileInfo, err := os.Stat(filename)
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf(errorWrapFormat, err)
 	}
 
 	fileMode := fileInfo.Mode()
@@ -112,7 +116,7 @@ func readInput(input io.Reader) (string, error) {
 	r := bufio.NewReader(input)
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return "", fmt.Errorf("%w", err)
+		return "", fmt.Errorf(errorWrapFormat, err)
 	}
 
 	if len(b) == 0 {
@@ -129,7 +133,225 @@ func stringSliceToRow(fields []string) table.Row {
 	for i, v := range fields {
 		row[i] = v
 	}
+
 	return row
+}
+
+func (t *Tablo) splitFields(line string) []string {
+	if t.FieldDelimiter == 0 {
+		return spaceSplitter(defaultSpaceAmount).Split(line, -1)
+	}
+
+	return strings.Split(line, string(t.FieldDelimiter))
+}
+
+func (t *Tablo) selectColumnIndices(headers []string) []int {
+	if len(headers) == 0 || len(t.Args) == 0 {
+		return nil
+	}
+
+	var columnIndices []int
+	for _, arg := range t.Args {
+		for idx, header := range headers {
+			if strings.EqualFold(header, arg) {
+				columnIndices = append(columnIndices, idx)
+				break
+			}
+		}
+	}
+
+	return columnIndices
+}
+
+func pickFieldsByIndices(fields []string, indices []int) []string {
+	var selectedFields []string
+
+	for _, idx := range indices {
+		if idx < len(fields) {
+			selectedFields = append(selectedFields, fields[idx])
+		} else {
+			selectedFields = append(selectedFields, "")
+		}
+	}
+
+	return selectedFields
+}
+
+func (t *Tablo) selectFields(fields []string, columnIndices []int) []string {
+	var selectedFields []string
+
+	switch {
+	case len(t.FilterIndexes) > 0:
+		for _, idx := range t.FilterIndexes {
+			if idx >= 0 && idx < len(fields) {
+				selectedFields = append(selectedFields, fields[idx])
+			} else {
+				selectedFields = append(selectedFields, "")
+			}
+		}
+	case len(columnIndices) > 0:
+		for _, idx := range columnIndices {
+			if idx < len(fields) {
+				selectedFields = append(selectedFields, fields[idx])
+			} else {
+				selectedFields = append(selectedFields, "")
+			}
+		}
+	default:
+		selectedFields = fields
+	}
+
+	return selectedFields
+}
+
+func isHeaderLikeField(field string) bool {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return false
+	}
+
+	for i, r := range field {
+		switch {
+		case r == ' ' || r == '_' || r == '-':
+			continue
+		case i == 0 && (r < 'A' || (r > 'Z' && r < 'a') || r > 'z'):
+			return false
+		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			continue
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
+func looksLikeHeader(fields []string) bool {
+	if len(fields) <= 1 {
+		return false
+	}
+
+	for _, field := range fields {
+		if !isHeaderLikeField(field) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type jsonDataset struct {
+	headers   []string
+	rows      [][]string
+	hasHeader bool
+}
+
+func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
+	if len(lines) == 0 {
+		return jsonDataset{
+			rows: [][]string{},
+		}
+	}
+
+	headers := t.splitFields(lines[0])
+	columnIndices := t.selectColumnIndices(headers)
+
+	dataset := jsonDataset{
+		rows: make([][]string, 0, len(lines)),
+	}
+	if len(t.FilterIndexes) == 0 && len(columnIndices) > 0 {
+		dataset.headers = pickFieldsByIndices(headers, columnIndices)
+		dataset.hasHeader = true
+	} else if len(t.FilterIndexes) == 0 && looksLikeHeader(headers) {
+		dataset.headers = headers
+		dataset.hasHeader = true
+	}
+
+	start := 0
+	if dataset.hasHeader {
+		start = 1
+	}
+
+	for i := start; i < len(lines); i++ {
+		fields := t.splitFields(lines[i])
+		dataset.rows = append(dataset.rows, t.selectFields(fields, columnIndices))
+	}
+
+	return dataset
+}
+
+func writeJSONString(buf *bytes.Buffer, value string) error {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf(errorWrapFormat, err)
+	}
+
+	_, err = buf.Write(b)
+	if err != nil {
+		return fmt.Errorf(errorWrapFormat, err)
+	}
+
+	return nil
+}
+
+func (t *Tablo) renderJSON(lines []string) error {
+	dataset := t.buildJSONDataset(lines)
+
+	if !dataset.hasHeader {
+		b, err := json.MarshalIndent(dataset.rows, "", "  ")
+		if err != nil {
+			return fmt.Errorf(errorWrapFormat, err)
+		}
+
+		_, err = fmt.Fprintf(t.Output, "%s\n", b)
+		if err != nil {
+			return fmt.Errorf(errorWrapFormat, err)
+		}
+
+		return nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("[\n")
+
+	for i, row := range dataset.rows {
+		buf.WriteString("  {\n")
+		for j, header := range dataset.headers {
+			buf.WriteString("    ")
+			if err := writeJSONString(&buf, header); err != nil {
+				return err
+			}
+			buf.WriteString(": ")
+
+			value := ""
+			if j < len(row) {
+				value = row[j]
+			}
+			if err := writeJSONString(&buf, value); err != nil {
+				return err
+			}
+
+			if j < len(dataset.headers)-1 {
+				buf.WriteString(",")
+			}
+			buf.WriteString("\n")
+		}
+
+		buf.WriteString("  }")
+		if i < len(dataset.rows)-1 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("\n")
+	}
+
+	buf.WriteString("]\n")
+
+	_, err := t.Output.Write(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf(errorWrapFormat, err)
+	}
+
+	return nil
 }
 
 // Tablo holds the required params.
@@ -145,6 +367,7 @@ type Tablo struct {
 	SeparateRows   bool
 	DrawBorder     bool
 	HideHeaders    bool
+	JSONOutput     bool
 }
 
 func (t *Tablo) setDefaults() {
@@ -166,7 +389,7 @@ var (
 func (t *Tablo) parseArgs() (string, error) {
 	finfo, finfoErr := os.Stdin.Stat()
 	if finfoErr != nil {
-		return "", fmt.Errorf("%w", finfoErr)
+		return "", fmt.Errorf(errorWrapFormat, finfoErr)
 	}
 
 	if len(t.Args) == 0 || (len(t.Args) > 0 && IsNamedPipe(finfo)) {
@@ -192,7 +415,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 	if fileArg != "" {
 		file, errF := os.Open(filepath.Clean(fileArg))
 		if errF != nil {
-			return nil, fmt.Errorf("%w", errF)
+			return nil, fmt.Errorf(errorWrapFormat, errF)
 		}
 
 		readFrom = file
@@ -201,7 +424,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 	if readFrom == os.Stdin {
 		finfo, finfoErr := os.Stdin.Stat()
 		if finfoErr != nil {
-			return nil, fmt.Errorf("%w", finfoErr)
+			return nil, fmt.Errorf(errorWrapFormat, finfoErr)
 		}
 
 		if IsCharDevice(finfo) {
@@ -221,31 +444,11 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 		return nil
 	}
 
-	var headers []string
-	var columnIndices []int
-
-	if t.FieldDelimiter == 0 {
-		headers = spaceSplitter(defaultSpaceAmount).Split(lines[0], -1)
-	} else {
-		headers = strings.Split(lines[0], string(t.FieldDelimiter))
-	}
-
-	for _, arg := range t.Args {
-		for idx, header := range headers {
-			if strings.EqualFold(header, arg) {
-				columnIndices = append(columnIndices, idx)
-				break
-			}
-		}
-	}
+	headers := t.splitFields(lines[0])
+	columnIndices := t.selectColumnIndices(headers)
 
 	if len(columnIndices) > 0 {
-		var selectedHeaders []string
-		for _, idx := range columnIndices {
-			if idx < len(headers) {
-				selectedHeaders = append(selectedHeaders, headers[idx])
-			}
-		}
+		selectedHeaders := pickFieldsByIndices(headers, columnIndices)
 		if !t.HideHeaders {
 			tw.AppendHeader(stringSliceToRow(selectedHeaders))
 		}
@@ -261,46 +464,12 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 }
 
 func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int) {
-	columnIndicesLen := len(columnIndices)
-	filterIndexesLen := len(t.FilterIndexes)
-
 	for i, line := range lines {
 		if len(t.Args) > 0 && i == 0 {
 			continue
 		}
-		var fields []string
-
-		if t.FieldDelimiter == 0 {
-			fields = spaceSplitter(defaultSpaceAmount).Split(line, -1)
-		} else {
-			fields = strings.Split(line, string(t.FieldDelimiter))
-		}
-
-		var selectedFields []string
-
-		switch {
-		case filterIndexesLen > 0:
-			for _, idx := range t.FilterIndexes {
-				if idx >= 0 && idx < len(fields) {
-					selectedFields = append(selectedFields, fields[idx])
-				} else {
-					selectedFields = append(selectedFields, "")
-				}
-			}
-
-		case columnIndicesLen > 0:
-			for _, idx := range columnIndices {
-				if idx < len(fields) {
-					selectedFields = append(selectedFields, fields[idx])
-				} else {
-					selectedFields = append(selectedFields, "")
-				}
-			}
-
-		default:
-			selectedFields = fields
-		}
-
+		fields := t.splitFields(line)
+		selectedFields := t.selectFields(fields, columnIndices)
 		tw.AppendRow(stringSliceToRow(selectedFields))
 	}
 }
@@ -337,6 +506,10 @@ func (t *Tablo) Tabelize() error {
 			continue
 		}
 		lines = append(lines, line)
+	}
+
+	if t.JSONOutput {
+		return t.renderJSON(lines)
 	}
 
 	drawBorders := !t.DrawBorder
@@ -502,6 +675,15 @@ func WithNoHeaders(hide bool) Option {
 	}
 }
 
+// WithJSONOutput renders output as JSON.
+func WithJSONOutput(enabled bool) Option {
+	return func(t *Tablo) error {
+		t.JSONOutput = enabled
+
+		return nil
+	}
+}
+
 // WithFilterIndexes sets the filter index columns.
 func WithFilterIndexes(indexes string) Option {
 	return func(t *Tablo) error {
@@ -570,11 +752,14 @@ func Run() error {
 	filterIndexes := flag.String("filter-indexes", "", helpFilterIndexes)
 	flag.StringVar(filterIndexes, "fi", "", helpFilterIndexes+" (short)")
 
+	jsonOutput := flag.Bool("json", false, helpJSONOutput)
+	flag.BoolVar(jsonOutput, "j", false, helpJSONOutput+" (short)")
+
 	output := flag.String("output", defaultOutput, helpOutput)
 	flag.StringVar(output, "o", defaultOutput, helpOutput+" (short)")
 
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
-		return fmt.Errorf("%w", err)
+		return fmt.Errorf(errorWrapFormat, err)
 	}
 
 	tbl, err := New(
@@ -588,6 +773,7 @@ func Run() error {
 		WithNoDrawBorder(*noBorders),
 		WithNoHeaders(*noHeaders),
 		WithFilterIndexes(*filterIndexes),
+		WithJSONOutput(*jsonOutput),
 	)
 	if err != nil {
 		return err

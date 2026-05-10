@@ -19,6 +19,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   -nb, -no-borders                  %s
   -nh, -no-headers                  %s
   -fi, -filter-indexes              %s
+  -j, -json                         %s
   -o, -output                       %s
                                     (default "stdout")
 
@@ -39,6 +40,7 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   $ docker images | %[1]s
   $ docker images | %[1]s REPOSITORY              # show only REPOSITORY colum
   $ docker images | %[1]s REPOSITORY "IMAGE ID"   # show REPOSITORY and IMAGE ID colums
+  $ docker images | %[1]s -j                       # render rows as json
 
   # save output to a file
   $ docker images | %[1]s -o /path/to/docker-images.txt REPOSITORY "IMAGE ID"
@@ -73,6 +75,7 @@ func showUsage() {
 		helpNoBorders,
 		helpNoHeaders,
 		helpFilterIndexes,
+		helpJSONOutput,
 		helpOutput,
 	}
 	fmt.Fprintf(flag.CommandLine.Output(), usage, args...)
