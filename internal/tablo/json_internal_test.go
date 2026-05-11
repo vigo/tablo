@@ -82,12 +82,33 @@ func TestTablo_DetectFieldDelimiter(t *testing.T) {
 	assert.Equal(t, ',', delimiter)
 }
 
+func TestTablo_DetectFieldDelimiter_UsesConfiguredDelimiter(t *testing.T) {
+	tbl := &Tablo{
+		FieldDelimiter: ';',
+	}
+
+	delimiter := tbl.detectFieldDelimiter([]string{"name,age", "vigo,42"})
+
+	assert.Equal(t, ';', delimiter)
+}
+
 func TestTablo_DetectFieldDelimiter_DoesNotAssumeQuotedCSVParsing(t *testing.T) {
 	tbl := &Tablo{}
 
 	delimiter := tbl.detectFieldDelimiter([]string{
 		`name,notes`,
 		`vigo,"a,b"`,
+	})
+
+	assert.Equal(t, rune(0), delimiter)
+}
+
+func TestTablo_DetectFieldDelimiter_MismatchedFieldCountsReturnZero(t *testing.T) {
+	tbl := &Tablo{}
+
+	delimiter := tbl.detectFieldDelimiter([]string{
+		"name,age",
+		"vigo,42,istanbul",
 	})
 
 	assert.Equal(t, rune(0), delimiter)
@@ -145,6 +166,16 @@ func TestTablo_ShouldSkipFirstRow_FilterIndexesTakePrecedence(t *testing.T) {
 	}
 
 	skip := tbl.shouldSkipFirstRow([]string{"name|age", "vigo|42"})
+
+	assert.False(t, skip)
+}
+
+func TestTablo_ShouldSkipFirstRow_NoHeadersInSmartMode_DoesNotSkip(t *testing.T) {
+	tbl := &Tablo{
+		HideHeaders: true,
+	}
+
+	skip := tbl.shouldSkipFirstRow([]string{"name  age", "vigo  42"})
 
 	assert.False(t, skip)
 }

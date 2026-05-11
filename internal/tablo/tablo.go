@@ -541,14 +541,14 @@ func (t *Tablo) shouldSkipFirstRow(lines []string) bool {
 	}
 
 	if len(t.FilterIndexes) > 0 {
-		return t.HideHeaders && looksLikeHeader(t.splitFields(lines[0]))
+		return t.HideHeaders && t.FieldDelimiter != 0 && looksLikeHeader(t.splitFields(lines[0]))
 	}
 
 	if len(t.Args) > 0 {
 		return true
 	}
 
-	if !t.HideHeaders {
+	if !t.HideHeaders || t.FieldDelimiter == 0 {
 		return false
 	}
 
