@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -41,6 +42,7 @@ const (
 	defaultOutput        = "stdout"
 	defaultLineDelimiter = '\n'
 	defaultSpaceAmount   = 2
+	delimiterProbeLines  = 5
 )
 
 // sentinel errors.
@@ -145,6 +147,74 @@ func (t *Tablo) splitFields(line string) []string {
 	return strings.Split(line, string(t.FieldDelimiter))
 }
 
+func countDelimiterOutsideQuotes(line string, delimiter rune) int {
+	count := 0
+	inQuotes := false
+
+	for _, r := range line {
+		switch r {
+		case '"':
+			inQuotes = !inQuotes
+		case delimiter:
+			if !inQuotes {
+				count++
+			}
+		}
+	}
+
+	return count
+}
+
+func (t *Tablo) detectFieldDelimiter(lines []string) rune {
+	if t.FieldDelimiter != 0 {
+		return t.FieldDelimiter
+	}
+
+	candidates := []rune{',', ';', '\t', '|'}
+	maxLines := min(len(lines), delimiterProbeLines)
+
+	for _, candidate := range candidates {
+		fieldCount := 0
+		matchedLines := 0
+
+		for i := 0; i < maxLines; i++ {
+			line := strings.TrimSpace(lines[i])
+			if line == "" {
+				continue
+			}
+
+			currentCount := countDelimiterOutsideQuotes(line, candidate) + 1
+			if currentCount <= 1 {
+				fieldCount = 0
+				break
+			}
+
+			if fieldCount == 0 {
+				fieldCount = currentCount
+			} else if fieldCount != currentCount {
+				fieldCount = 0
+				break
+			}
+
+			matchedLines++
+		}
+
+		if matchedLines >= 2 && fieldCount > 1 {
+			return candidate
+		}
+	}
+
+	return 0
+}
+
+func (t *Tablo) ensureDetectedFieldDelimiter(lines []string) {
+	if t.FieldDelimiter != 0 {
+		return
+	}
+
+	t.FieldDelimiter = t.detectFieldDelimiter(lines)
+}
+
 func (t *Tablo) selectColumnIndices(headers []string) []int {
 	if len(headers) == 0 || len(t.Args) == 0 {
 		return nil
@@ -206,24 +276,30 @@ func (t *Tablo) selectFields(fields []string, columnIndices []int) []string {
 
 func isHeaderLikeField(field string) bool {
 	field = strings.TrimSpace(field)
+	field = strings.Trim(field, `"'`)
+	field = strings.TrimLeft(field, "_-")
+	field = strings.TrimSpace(field)
 	if field == "" {
 		return false
 	}
 
-	for i, r := range field {
+	hasLetter := false
+	for _, r := range field {
 		switch {
-		case r == ' ' || r == '_' || r == '-':
+		case unicode.IsLetter(r):
+			hasLetter = true
+		case unicode.IsDigit(r):
 			continue
-		case i == 0 && (r < 'A' || (r > 'Z' && r < 'a') || r > 'z'):
-			return false
-		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+		case unicode.IsSpace(r):
+			continue
+		case strings.ContainsRune("_-./():", r):
 			continue
 		default:
 			return false
 		}
 	}
 
-	return true
+	return hasLetter
 }
 
 func looksLikeHeader(fields []string) bool {
@@ -247,6 +323,8 @@ type jsonDataset struct {
 }
 
 func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
+	t.ensureDetectedFieldDelimiter(lines)
+
 	if len(lines) == 0 {
 		return jsonDataset{
 			rows: [][]string{},
@@ -527,6 +605,8 @@ func (t *Tablo) Tabelize() error {
 	if t.JSONOutput {
 		return t.renderJSON(lines)
 	}
+
+	t.ensureDetectedFieldDelimiter(lines)
 
 	drawBorders := !t.DrawBorder
 	drawSeparateRowsLine := !t.SeparateRows

@@ -66,8 +66,33 @@ func TestTablo_BuildJSONDataset_WithSelectedHeaders(t *testing.T) {
 
 func TestLooksLikeHeader(t *testing.T) {
 	assert.True(t, looksLikeHeader([]string{"name", "age"}))
+	assert.True(t, looksLikeHeader([]string{"ID", `"T.C. KİMLİK NO"`, "-BÖLÜM", `"_ADI SOYADI"`}))
 	assert.False(t, looksLikeHeader([]string{"nobody", "*", "/usr/bin/false"}))
 	assert.False(t, looksLikeHeader([]string{"single value"}))
+}
+
+func TestTablo_DetectFieldDelimiter(t *testing.T) {
+	tbl := &Tablo{}
+
+	delimiter := tbl.detectFieldDelimiter([]string{
+		`ID,"name",department`,
+		`1,"vigo",engineering`,
+	})
+
+	assert.Equal(t, ',', delimiter)
+}
+
+func TestTablo_BuildJSONDataset_AutoDetectsCSVDelimiter(t *testing.T) {
+	tbl := &Tablo{}
+
+	dataset := tbl.buildJSONDataset([]string{
+		`name,age`,
+		`vigo,42`,
+	})
+
+	assert.True(t, dataset.hasHeader)
+	assert.Equal(t, []string{"name", "age"}, dataset.headers)
+	assert.Equal(t, [][]string{{"vigo", "42"}}, dataset.rows)
 }
 
 func TestTablo_BuildJSONDataset_FilterIndexesTakePrecedence(t *testing.T) {

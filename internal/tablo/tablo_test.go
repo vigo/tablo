@@ -726,6 +726,87 @@ grey07;2070;Laura;Grey
 	assert.Equal(t, expectedOutput, output.String())
 }
 
+func TestTablo_Tabelize_CSV_WithQuotedUnicodeHeaders_AndNoHeaders_SkipsHeaderRow(t *testing.T) {
+	input := bytes.NewBufferString(`ID,"_ADI SOYADI","-T.C. KİMLİK NO",-BÖLÜM
+999721,"Filiz Yenilmez",23795235860,Muhasebe
+999722,"Ali Veli",12345678901,İnsan Kaynakları
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(","),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoHeaders(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `┌────────┬──────────────────┬─────────────┬──────────────────┐
+│ 999721 │ "Filiz Yenilmez" │ 23795235860 │ Muhasebe         │
+├────────┼──────────────────┼─────────────┼──────────────────┤
+│ 999722 │ "Ali Veli"       │ 12345678901 │ İnsan Kaynakları │
+└────────┴──────────────────┴─────────────┴──────────────────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Tabelize_CSV_AutoDetectsDelimiter_WithNoHeaders(t *testing.T) {
+	input := bytes.NewBufferString(`ID,"_ADI SOYADI","-T.C. KİMLİK NO",-BÖLÜM
+999721,"Filiz Yenilmez",23795235860,Muhasebe
+999722,"Ali Veli",12345678901,İnsan Kaynakları
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoHeaders(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `┌────────┬──────────────────┬─────────────┬──────────────────┐
+│ 999721 │ "Filiz Yenilmez" │ 23795235860 │ Muhasebe         │
+├────────┼──────────────────┼─────────────┼──────────────────┤
+│ 999722 │ "Ali Veli"       │ 12345678901 │ İnsan Kaynakları │
+└────────┴──────────────────┴─────────────┴──────────────────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
 func TestTablo_Run_Returns_Error(t *testing.T) {
 	os.Args = []string{"tablo", "-l", ""}
 	resetFlags()

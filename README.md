@@ -143,7 +143,9 @@ this is line
 - **Smart mode** (when `-f` is omitted): splits on **2 or more consecutive
   whitespace characters**. This is ideal for aligned column output from tools
   like `docker images`, `ps aux`, `ls -l`, where cell values may contain a
-  single space (e.g. `"2 weeks ago"`, `"Up 22 hours"`).
+  single space (e.g. `"2 weeks ago"`, `"Up 22 hours"`). When the input looks
+  like delimited data (CSV/TSV or similar), `tablo` auto-detects common
+  delimiters such as `,`, `;`, tab, and `|`.
 - **Exact mode** (when `-f <char>` is given): splits on **each occurrence** of
   the given character. Consecutive delimiters preserve empty cells, matching
   CSV semantics.
