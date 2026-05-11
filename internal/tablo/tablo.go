@@ -346,7 +346,7 @@ func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
 	}
 
 	start := 0
-	if dataset.hasHeader {
+	if dataset.hasHeader || t.shouldSkipFirstRow(lines) {
 		start = 1
 	}
 
@@ -555,6 +555,10 @@ func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int
 func (t *Tablo) shouldSkipFirstRow(lines []string) bool {
 	if len(lines) == 0 {
 		return false
+	}
+
+	if len(t.FilterIndexes) > 0 {
+		return t.HideHeaders && looksLikeHeader(t.splitFields(lines[0]))
 	}
 
 	if len(t.Args) > 0 {

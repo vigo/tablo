@@ -322,13 +322,13 @@ cat /path/to/username.csv | tablo -f ";" -n
 └───────────┴────────────┴────────────┴───────────┘
 
 cat /path/to/username.csv | tablo -f ";" -n -nh
-┌───────────┬────────────┬────────────┬───────────┐
-│ booker12  │ 9012       │ Rachel     │ Booker    │
-│ grey07    │ 2070       │ Laura      │ Grey      │
-│ johnson81 │ 4081       │ Craig      │ Johnson   │
-│ jenkins46 │ 9346       │ Mary       │ Jenkins   │
-│ smith79   │ 5079       │ Jamie      │ Smith     │
-└───────────┴────────────┴────────────┴───────────┘
+┌───────────┬──────┬────────┬─────────┐
+│ booker12  │ 9012 │ Rachel │ Booker  │
+│ grey07    │ 2070 │ Laura  │ Grey    │
+│ johnson81 │ 4081 │ Craig  │ Johnson │
+│ jenkins46 │ 9346 │ Mary   │ Jenkins │
+│ smith79   │ 5079 │ Jamie  │ Smith   │
+└───────────┴──────┴────────┴─────────┘
 
 cat /path/to/username.csv | tablo -f ";" -n username
 ┌───────────┐

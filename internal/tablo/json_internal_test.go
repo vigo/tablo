@@ -109,6 +109,35 @@ func TestTablo_BuildJSONDataset_FilterIndexesTakePrecedence(t *testing.T) {
 	assert.Equal(t, [][]string{{"age"}, {"42"}}, dataset.rows)
 }
 
+func TestTablo_BuildJSONDataset_FilterIndexesWithNoHeaders_SkipsDetectedHeaderRow(t *testing.T) {
+	tbl := &Tablo{
+		FieldDelimiter: ';',
+		FilterIndexes:  []int{0, 2},
+		HideHeaders:    true,
+	}
+
+	dataset := tbl.buildJSONDataset([]string{
+		"Username;Identifier;First name;Last name",
+		"booker12;9012;Rachel;Booker",
+		"grey07;2070;Laura;Grey",
+	})
+
+	assert.False(t, dataset.hasHeader)
+	assert.Empty(t, dataset.headers)
+	assert.Equal(t, [][]string{{"booker12", "Rachel"}, {"grey07", "Laura"}}, dataset.rows)
+}
+
+func TestTablo_ShouldSkipFirstRow_FilterIndexesTakePrecedence(t *testing.T) {
+	tbl := &Tablo{
+		Args:          []string{"name"},
+		FilterIndexes: []int{1},
+	}
+
+	skip := tbl.shouldSkipFirstRow([]string{"name|age", "vigo|42"})
+
+	assert.False(t, skip)
+}
+
 func TestTablo_RenderJSON_WithoutHeaders_ReturnsWriteError(t *testing.T) {
 	writeErr := errors.New("write failed")
 	tbl := &Tablo{
