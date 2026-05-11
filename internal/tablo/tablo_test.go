@@ -643,6 +643,89 @@ superset-superset-worker
 	assert.Equal(t, expectedOutput, output.String())
 }
 
+func TestTablo_Tabelize_CSV_WithNoHeaders_SkipsDetectedHeaderRow(t *testing.T) {
+	input := bytes.NewBufferString(`Username;Identifier;First name;Last name
+booker12;9012;Rachel;Booker
+grey07;2070;Laura;Grey
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(";"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoHeaders(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `┌──────────┬──────┬────────┬────────┐
+│ booker12 │ 9012 │ Rachel │ Booker │
+├──────────┼──────┼────────┼────────┤
+│ grey07   │ 2070 │ Laura  │ Grey   │
+└──────────┴──────┴────────┴────────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Tabelize_CSV_FilterIndexes_WithNoHeaders_SkipsDetectedHeaderRow(t *testing.T) {
+	input := bytes.NewBufferString(`Username;Identifier;First name;Last name
+booker12;9012;Rachel;Booker
+grey07;2070;Laura;Grey
+`)
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter(";"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithFilterIndexes("1,3"),
+		tablo.WithNoHeaders(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := `┌──────────┬────────┐
+│ booker12 │ Rachel │
+├──────────┼────────┤
+│ grey07   │ Laura  │
+└──────────┴────────┘
+`
+	assert.Equal(t, expectedOutput, output.String())
+}
+
 func TestTablo_Run_Returns_Error(t *testing.T) {
 	os.Args = []string{"tablo", "-l", ""}
 	resetFlags()

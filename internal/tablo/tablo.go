@@ -34,7 +34,7 @@ const (
 	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
 	helpNoBorders          = "do not draw borders"
-	helpNoHeaders          = "hide headers line in filter by header result"
+	helpNoHeaders          = "hide the selected or detected header row"
 	helpFilterIndexes      = "filter columns by index"
 	helpJSONOutput         = "render output as json"
 
@@ -465,13 +465,29 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 
 func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int) {
 	for i, line := range lines {
-		if len(t.Args) > 0 && i == 0 {
+		if i == 0 && t.shouldSkipFirstRow(lines) {
 			continue
 		}
 		fields := t.splitFields(line)
 		selectedFields := t.selectFields(fields, columnIndices)
 		tw.AppendRow(stringSliceToRow(selectedFields))
 	}
+}
+
+func (t *Tablo) shouldSkipFirstRow(lines []string) bool {
+	if len(lines) == 0 {
+		return false
+	}
+
+	if len(t.Args) > 0 {
+		return true
+	}
+
+	if !t.HideHeaders {
+		return false
+	}
+
+	return looksLikeHeader(t.splitFields(lines[0]))
 }
 
 // Tabelize generates tablized output.

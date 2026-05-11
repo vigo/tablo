@@ -42,7 +42,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
   -nb, -no-borders                  do not draw borders
-  -nh, -no-headers                  hide headers line in filter by header result
+  -nh, -no-headers                  hide the selected or detected header row
   -fi, -filter-indexes              filter columns by index
   -j, -json                         render output as json
   -o, -output                       where to send output, can be file path or stdout
@@ -312,6 +312,15 @@ cat /path/to/username.csv | tablo -f ";"
 cat /path/to/username.csv | tablo -f ";" -n
 ┌───────────┬────────────┬────────────┬───────────┐
 │ Username  │ Identifier │ First name │ Last name │
+│ booker12  │ 9012       │ Rachel     │ Booker    │
+│ grey07    │ 2070       │ Laura      │ Grey      │
+│ johnson81 │ 4081       │ Craig      │ Johnson   │
+│ jenkins46 │ 9346       │ Mary       │ Jenkins   │
+│ smith79   │ 5079       │ Jamie      │ Smith     │
+└───────────┴────────────┴────────────┴───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n -nh
+┌───────────┬────────────┬────────────┬───────────┐
 │ booker12  │ 9012       │ Rachel     │ Booker    │
 │ grey07    │ 2070       │ Laura      │ Grey      │
 │ johnson81 │ 4081       │ Craig      │ Johnson   │
