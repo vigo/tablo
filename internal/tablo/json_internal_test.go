@@ -82,6 +82,17 @@ func TestTablo_DetectFieldDelimiter(t *testing.T) {
 	assert.Equal(t, ',', delimiter)
 }
 
+func TestTablo_DetectFieldDelimiter_DoesNotAssumeQuotedCSVParsing(t *testing.T) {
+	tbl := &Tablo{}
+
+	delimiter := tbl.detectFieldDelimiter([]string{
+		`name,notes`,
+		`vigo,"a,b"`,
+	})
+
+	assert.Equal(t, rune(0), delimiter)
+}
+
 func TestTablo_BuildJSONDataset_AutoDetectsCSVDelimiter(t *testing.T) {
 	tbl := &Tablo{}
 

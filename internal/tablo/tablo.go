@@ -147,24 +147,6 @@ func (t *Tablo) splitFields(line string) []string {
 	return strings.Split(line, string(t.FieldDelimiter))
 }
 
-func countDelimiterOutsideQuotes(line string, delimiter rune) int {
-	count := 0
-	inQuotes := false
-
-	for _, r := range line {
-		switch r {
-		case '"':
-			inQuotes = !inQuotes
-		case delimiter:
-			if !inQuotes {
-				count++
-			}
-		}
-	}
-
-	return count
-}
-
 func (t *Tablo) detectFieldDelimiter(lines []string) rune {
 	if t.FieldDelimiter != 0 {
 		return t.FieldDelimiter
@@ -183,7 +165,7 @@ func (t *Tablo) detectFieldDelimiter(lines []string) rune {
 				continue
 			}
 
-			currentCount := countDelimiterOutsideQuotes(line, candidate) + 1
+			currentCount := strings.Count(line, string(candidate)) + 1
 			if currentCount <= 1 {
 				fieldCount = 0
 				break
@@ -275,7 +257,6 @@ func (t *Tablo) selectFields(fields []string, columnIndices []int) []string {
 }
 
 func isHeaderLikeField(field string) bool {
-	field = strings.TrimSpace(field)
 	field = strings.Trim(field, `"'`)
 	field = strings.TrimLeft(field, "_-")
 	field = strings.TrimSpace(field)
