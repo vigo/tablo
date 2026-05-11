@@ -489,6 +489,74 @@ func TestTablo_Tabelize_WithFieldDelimiter_Wrong_Column_Selection(t *testing.T) 
 	assert.Equal(t, expectedOutput, output.String())
 }
 
+func TestTablo_Tabelize_WithFieldDelimiter_Wrong_Column_Selection_WithNoHeaders(t *testing.T) {
+	input := bytes.NewBufferString("header1.header2\nfoo.bar\n")
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithArgs([]string{"xxx"}),
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter("."),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithNoHeaders(true),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := "┌─────┬─────┐\n│ foo │ bar │\n└─────┴─────┘\n"
+	assert.Equal(t, expectedOutput, output.String())
+}
+
+func TestTablo_Tabelize_FilterIndexesIgnoreArgsForHeaders(t *testing.T) {
+	input := bytes.NewBufferString("name|age\nvigo|42\n")
+	output := new(BytesWriteCloser)
+
+	oldIsNamedPipe := tablo.IsNamedPipe
+	oldIsCharDevice := tablo.IsCharDevice
+	tablo.IsNamedPipe = func(_ os.FileInfo) bool { return true }
+	tablo.IsCharDevice = func(_ os.FileInfo) bool { return false }
+	defer func() {
+		tablo.IsNamedPipe = oldIsNamedPipe
+		tablo.IsCharDevice = oldIsCharDevice
+	}()
+
+	tbl, err := tablo.New(
+		tablo.WithArgs([]string{"name"}),
+		tablo.WithOutputWriter(output),
+		tablo.WithFieldDelimiter("|"),
+		tablo.WithLineDelimiter("\n"),
+		tablo.WithFilterIndexes("2"),
+		tablo.WithReadInputFunc(func(_ io.Reader) (string, error) {
+			return input.String(), nil
+		}),
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, tbl)
+
+	err = tbl.Tabelize()
+	assert.NoError(t, err)
+
+	expectedOutput := "┌─────┐\n│ age │\n├─────┤\n│ 42  │\n└─────┘\n"
+	assert.Equal(t, expectedOutput, output.String())
+}
+
 func TestTablo_Tabelize_Docker_Images(t *testing.T) {
 	input := bytes.NewBufferString(`REPOSITORY                         TAG       IMAGE ID       CREATED         SIZE
 superset-superset-worker-beat      latest    3292fc2e6758   2 weeks ago     958MB

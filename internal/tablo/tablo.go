@@ -499,7 +499,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 }
 
 func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
-	if len(lines) == 0 || len(t.Args) == 0 {
+	if len(lines) == 0 || len(t.FilterIndexes) > 0 || len(t.Args) == 0 {
 		return nil
 	}
 
@@ -513,8 +513,10 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 		}
 	} else {
 		if len(lines) > 1 {
-			tw.AppendHeader(stringSliceToRow(headers))
-		} else {
+			if !t.HideHeaders {
+				tw.AppendHeader(stringSliceToRow(headers))
+			}
+		} else if !t.HideHeaders {
 			tw.AppendRow(stringSliceToRow(headers))
 		}
 	}
