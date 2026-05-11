@@ -114,6 +114,17 @@ func TestTablo_DetectFieldDelimiter_MismatchedFieldCountsReturnZero(t *testing.T
 	assert.Equal(t, rune(0), delimiter)
 }
 
+func TestTablo_DetectFieldDelimiter_PreservesLeadingAndTrailingTabs(t *testing.T) {
+	tbl := &Tablo{}
+
+	delimiter := tbl.detectFieldDelimiter([]string{
+		"\tname\tage\t",
+		"\tvigo\t42\t",
+	})
+
+	assert.Equal(t, '\t', delimiter)
+}
+
 func TestTablo_BuildJSONDataset_AutoDetectsCSVDelimiter(t *testing.T) {
 	tbl := &Tablo{}
 

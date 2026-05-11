@@ -160,8 +160,8 @@ func (t *Tablo) detectFieldDelimiter(lines []string) rune {
 		matchedLines := 0
 
 		for i := 0; i < maxLines; i++ {
-			line := strings.TrimSpace(lines[i])
-			if line == "" {
+			line := lines[i]
+			if strings.TrimSpace(line) == "" {
 				continue
 			}
 
