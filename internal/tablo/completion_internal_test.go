@@ -31,7 +31,9 @@ func TestBashCompletionScript(t *testing.T) {
 	assert.Contains(t, script, "positional_count=0")
 	assert.Contains(t, script, "saw_double_dash=0")
 	assert.Contains(t, script, "if (( saw_double_dash == 0 )); then")
-	assert.Contains(t, script, "if (( saw_double_dash == 1 )); then")
+	assert.Contains(t, script, "if (( saw_double_dash == 1 )) || (( positional_count > 0 )); then")
+	assert.Contains(t, script, "if (( positional_count == 0 )) && [[ \"${cur}\" == -* ]]; then")
+	assert.Contains(t, script, "-*)")
 	assert.Contains(t, script, "-fi|-filter-indexes|--filter-indexes")
 	assert.Contains(t, script, "-field-delimiter-char")
 	assert.Contains(t, script, "-o=*|-output=*|--output=*")
@@ -126,6 +128,18 @@ func TestCompletionSuggestions_InlineLineDelimiterValues(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"--line-delimiter-char=\\r"}, suggestions)
+}
+
+func TestCompletionSuggestions_AfterPositionalDoesNotSuggestInlineFlagValues(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions([]string{"tablo", inputFile, "--field-delimiter-char=:"}, 2)
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
 }
 
 func TestCompletionSuggestions_NoColumnCompletionWhenFilterIndexesSet(t *testing.T) {
@@ -298,6 +312,17 @@ func TestParseCompletionState_EndOfFlags(t *testing.T) {
 	assert.Equal(t, []string{"users.csv", "Username"}, state.positionals)
 }
 
+func TestParseCompletionState_StopsAtFirstPositional(t *testing.T) {
+	state := completionState{
+		lineDelimiter: defaultLineDelimiter,
+	}
+
+	err := parseCompletionState([]string{"tablo", "users.csv", "-o", "out.txt"}, 4, &state)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"users.csv", "-o", "out.txt"}, state.positionals)
+}
+
 func TestCompletionFlagToken(t *testing.T) {
 	flagName, flagValue, hasInlineValue := completionFlagToken("--output=file.txt")
 	assert.Equal(t, "--output", flagName)
@@ -427,13 +452,12 @@ func TestCompleteColumnsFromFile_WithoutHeaderReturnsNoSuggestions(t *testing.T)
 }
 
 func TestCompleteColumnsFromFile_ResolvesHomePath(t *testing.T) {
-	homeDir, err := os.UserHomeDir()
-	require.NoError(t, err)
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
 
 	inputFile := filepath.Join(homeDir, "tablo-completion-home.csv")
-	err = os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	err := os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
 	require.NoError(t, err)
-	defer func() { _ = os.Remove(inputFile) }()
 
 	suggestions, err := completeColumnsFromFile(completionState{
 		lineDelimiter:  '\n',

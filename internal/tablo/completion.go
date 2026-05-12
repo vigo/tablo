@@ -120,7 +120,7 @@ func bashCompletionScript(binaryName string) string {
             expect_value=0
             continue
         fi
-        if (( saw_double_dash == 1 )); then
+        if (( saw_double_dash == 1 )) || (( positional_count > 0 )); then
             positional_count=$(( positional_count + 1 ))
             continue
         fi
@@ -152,6 +152,7 @@ func bashCompletionScript(binaryName string) string {
                 continue
                 ;;
             -*)
+                positional_count=$(( positional_count + 1 ))
                 continue
                 ;;
         esac
@@ -184,6 +185,12 @@ func bashCompletionScript(binaryName string) string {
     while IFS= read -r reply; do
         COMPREPLY+=("${reply}")
     done < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[2]s -- "${COMP_WORDS[@]}")
+
+    if (( positional_count == 0 )) && [[ "${cur}" == -* ]]; then
+        while IFS= read -r reply; do
+            COMPREPLY+=("${reply}")
+        done < <(compgen -f -- "${cur}")
+    fi
 
     if (( ${#COMPREPLY[@]} > 0 )); then
         return 0
@@ -245,7 +252,13 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 
 	current := currentCompletionWord(words, cword)
 	afterDoubleDash := completionAfterDoubleDash(words, cword)
-	if !afterDoubleDash {
+	state := completionState{
+		lineDelimiter: defaultLineDelimiter,
+	}
+	if err := parseCompletionState(words, cword, &state); err != nil {
+		return nil, err
+	}
+	if !afterDoubleDash && len(state.positionals) == 0 {
 		if suggestions := completionInlineValueSuggestions(current); suggestions != nil {
 			return suggestions, nil
 		}
@@ -254,13 +267,6 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 		if suggestions := completionValueSuggestions(previous, current); suggestions != nil {
 			return suggestions, nil
 		}
-	}
-
-	state := completionState{
-		lineDelimiter: defaultLineDelimiter,
-	}
-	if err := parseCompletionState(words, cword, &state); err != nil {
-		return nil, err
 	}
 
 	if !afterDoubleDash &&
@@ -304,6 +310,10 @@ func parseCompletionState(words []string, cword int, state *completionState) err
 		}
 		if token == "--" {
 			state.positionals = append(state.positionals, words[i+1:cword]...)
+			break
+		}
+		if len(state.positionals) > 0 {
+			state.positionals = append(state.positionals, words[i:cword]...)
 			break
 		}
 
