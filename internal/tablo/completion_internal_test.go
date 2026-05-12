@@ -58,6 +58,21 @@ func TestShellQuote(t *testing.T) {
 	assert.Equal(t, `'tablo'\''dev'`, shellQuote("tablo'dev"))
 }
 
+func TestResolveCompletionPath(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	t.Setenv("TABLO_TEST_DIR", "tablo")
+
+	path, err := resolveCompletionPath("~/data.csv")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(homeDir, "data.csv"), path)
+
+	path, err = resolveCompletionPath("$TABLO_TEST_DIR/data.csv")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("tablo", "data.csv"), path)
+}
+
 func TestCompletionSuggestions_Flags(t *testing.T) {
 	suggestions, err := completionSuggestions([]string{"tablo", "--j"}, 1)
 
@@ -141,6 +156,18 @@ func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestFlags(t *testing.T) 
 
 func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestFlagValues(t *testing.T) {
 	suggestions, err := completionSuggestions([]string{"tablo", "--", "-f"}, 2)
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
+func TestCompletionSuggestions_AfterPositionalDoesNotSuggestFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions([]string{"tablo", inputFile, "-n"}, 2)
 
 	require.NoError(t, err)
 	assert.Nil(t, suggestions)
@@ -378,6 +405,43 @@ func TestCompleteColumnsFromFile_ReadsOnlyHeaderProbeLines(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"First name"}, suggestions)
+}
+
+func TestCompleteColumnsFromFile_WithoutHeaderReturnsNoSuggestions(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	content := strings.Join([]string{
+		"booker12;9012;Rachel",
+		"grey07;2070;Laura",
+	}, "\n")
+	err := os.WriteFile(inputFile, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completeColumnsFromFile(completionState{
+		lineDelimiter:  '\n',
+		fieldDelimiter: ';',
+	}, inputFile, nil, "Ra")
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
+func TestCompleteColumnsFromFile_ResolvesHomePath(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	inputFile := filepath.Join(homeDir, "tablo-completion-home.csv")
+	err = os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	require.NoError(t, err)
+	defer func() { _ = os.Remove(inputFile) }()
+
+	suggestions, err := completeColumnsFromFile(completionState{
+		lineDelimiter:  '\n',
+		fieldDelimiter: ';',
+	}, "~/tablo-completion-home.csv", nil, "Us")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username"}, suggestions)
 }
 
 func TestReadCompletionLines(t *testing.T) {

@@ -271,11 +271,15 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 	if state.filterIndexes || len(state.positionals) == 0 {
 		return nil, nil
 	}
-	if !isRegularFile(state.positionals[0]) {
+	resolvedPath, err := resolveCompletionPath(state.positionals[0])
+	if err != nil {
+		return nil, err
+	}
+	if !isRegularFile(resolvedPath) {
 		return nil, nil
 	}
 
-	return completeColumnsFromFile(state, state.positionals[0], state.positionals[1:], current)
+	return completeColumnsFromFile(state, resolvedPath, state.positionals[1:], current)
 }
 
 func completionAfterDoubleDash(words []string, cword int) bool {
@@ -453,7 +457,12 @@ func shellQuote(value string) string {
 }
 
 func completeColumnsFromFile(state completionState, path string, selected []string, current string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(path))
+	resolvedPath, err := resolveCompletionPath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(filepath.Clean(resolvedPath))
 	if err != nil {
 		return nil, fmt.Errorf(errorWrapFormat, err)
 	}
@@ -473,6 +482,10 @@ func completeColumnsFromFile(state completionState, path string, selected []stri
 	tbl.ensureDetectedFieldDelimiter(lines)
 
 	headers := tbl.splitFields(lines[0])
+	if !looksLikeHeader(headers) {
+		return nil, nil
+	}
+
 	seen := make(map[string]struct{}, len(selected))
 	for _, column := range selected {
 		seen[strings.ToLower(column)] = struct{}{}
@@ -489,6 +502,32 @@ func completeColumnsFromFile(state completionState, path string, selected []stri
 	}
 
 	return suggestions, nil
+}
+
+func resolveCompletionPath(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	expanded := os.ExpandEnv(path)
+	if expanded == "~" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf(errorWrapFormat, err)
+		}
+
+		return homeDir, nil
+	}
+	if strings.HasPrefix(expanded, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf(errorWrapFormat, err)
+		}
+
+		return filepath.Join(homeDir, strings.TrimPrefix(expanded, "~/")), nil
+	}
+
+	return expanded, nil
 }
 
 func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string, error) {
