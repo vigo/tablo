@@ -88,9 +88,10 @@ type completionState struct {
 
 func bashCompletionScript(binaryName string) string {
 	functionName := sanitizeCompletionFunctionName(binaryName)
+	quotedBinaryName := shellQuote(binaryName)
 
 	return fmt.Sprintf(`_%[2]s_completion() {
-    local cur prev word expect_value positional_count
+    local cur prev word expect_value positional_count reply
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev=""
@@ -102,8 +103,9 @@ func bashCompletionScript(binaryName string) string {
 
     case "${prev}" in
         -o|-output|--output)
-            compopt -o default
-            COMPREPLY=( $(compgen -f -- "${cur}") )
+            while IFS= read -r reply; do
+                COMPREPLY+=("${reply}")
+            done < <(compgen -f -- "${cur}")
             return 0
             ;;
     esac
@@ -145,19 +147,23 @@ func bashCompletionScript(binaryName string) string {
         positional_count=$(( positional_count + 1 ))
     done
 
-    mapfile -t COMPREPLY < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[3]s -- "${COMP_WORDS[@]}")
+    while IFS= read -r reply; do
+        COMPREPLY+=("${reply}")
+    done < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[3]s -- "${COMP_WORDS[@]}")
+
     if (( ${#COMPREPLY[@]} > 0 )); then
         return 0
     fi
 
     if (( positional_count == 0 )) && [[ "${cur}" != -* ]]; then
-        compopt -o default
-        COMPREPLY=( $(compgen -f -- "${cur}") )
+        while IFS= read -r reply; do
+            COMPREPLY+=("${reply}")
+        done < <(compgen -f -- "${cur}")
     fi
 }
 
-complete -F _%[2]s_completion %[1]s
-`, binaryName, functionName, completeFlag)
+complete -F _%[2]s_completion -- %[4]s
+`, binaryName, functionName, completeFlag, quotedBinaryName)
 }
 
 func runCompletion(words []string, output io.Writer) error {
@@ -230,6 +236,10 @@ func parseCompletionState(words []string, cword int, state *completionState) err
 			applyCompletionFlagValue(state, expectingValue, token)
 			expectingValue = ""
 			continue
+		}
+		if token == "--" {
+			state.positionals = append(state.positionals, words[i+1:cword]...)
+			break
 		}
 
 		flagName, flagValue, hasInlineValue := completionFlagToken(token)
@@ -351,6 +361,10 @@ func sanitizeCompletionFunctionName(name string) string {
 	}
 
 	return sanitized
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 func completeColumnsFromFile(state completionState, path string, selected []string, current string) ([]string, error) {

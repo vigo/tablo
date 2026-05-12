@@ -1417,6 +1417,6 @@ func TestRun_PrintBashCompletion(t *testing.T) {
 	output := new(BytesWriteCloser)
 	_, _ = output.ReadFrom(r)
 
-	assert.Contains(t, output.String(), "complete -F _tablo_completion tablo")
+	assert.Contains(t, output.String(), "complete -F _tablo_completion -- 'tablo'")
 	assert.Contains(t, output.String(), "--complete")
 }

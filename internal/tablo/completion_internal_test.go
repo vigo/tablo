@@ -26,10 +26,12 @@ func TestBashCompletionScript(t *testing.T) {
 	script := bashCompletionScript("tablo")
 
 	assert.Contains(t, script, "_tablo_completion() {")
-	assert.Contains(t, script, "complete -F _tablo_completion tablo")
+	assert.Contains(t, script, "complete -F _tablo_completion -- 'tablo'")
 	assert.Contains(t, script, completeFlag)
 	assert.Contains(t, script, "positional_count=0")
 	assert.Contains(t, script, "-field-delimiter-char")
+	assert.NotContains(t, script, "mapfile")
+	assert.NotContains(t, script, "compopt")
 }
 
 func TestSanitizeCompletionFunctionName(t *testing.T) {
@@ -42,8 +44,13 @@ func TestBashCompletionScript_UsesSanitizedFunctionName(t *testing.T) {
 	script := bashCompletionScript("tablo-dev")
 
 	assert.Contains(t, script, "_tablo_dev_completion() {")
-	assert.Contains(t, script, "complete -F _tablo_dev_completion tablo-dev")
+	assert.Contains(t, script, "complete -F _tablo_dev_completion -- 'tablo-dev'")
 	assert.NotContains(t, script, "_tablo-dev_completion() {")
+}
+
+func TestShellQuote(t *testing.T) {
+	assert.Equal(t, "'tablo dev'", shellQuote("tablo dev"))
+	assert.Equal(t, `'tablo'\''dev'`, shellQuote("tablo'dev"))
 }
 
 func TestCompletionSuggestions_Flags(t *testing.T) {
@@ -207,6 +214,17 @@ func TestParseCompletionState_SingleDashLongFlags(t *testing.T) {
 	assert.Equal(t, '\t', state.lineDelimiter)
 	assert.True(t, state.filterIndexes)
 	assert.Empty(t, state.positionals)
+}
+
+func TestParseCompletionState_EndOfFlags(t *testing.T) {
+	state := completionState{
+		lineDelimiter: defaultLineDelimiter,
+	}
+
+	err := parseCompletionState([]string{"tablo", "--", "users.csv", "Username"}, 4, &state)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"users.csv", "Username"}, state.positionals)
 }
 
 func TestCompletionFlagToken(t *testing.T) {
