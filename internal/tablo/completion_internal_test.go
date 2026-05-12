@@ -30,6 +30,7 @@ func TestBashCompletionScript(t *testing.T) {
 	assert.Contains(t, script, completeFlag)
 	assert.Contains(t, script, "positional_count=0")
 	assert.Contains(t, script, "-field-delimiter-char")
+	assert.Contains(t, script, "-o=*|-output=*|--output=*")
 	assert.NotContains(t, script, "mapfile")
 	assert.NotContains(t, script, "compopt")
 }
@@ -65,6 +66,8 @@ func TestCompletionSuggestions_AllFlagsForFirstArgument(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, suggestions, bashCompletionFlag)
+	assert.Contains(t, suggestions, "-h")
+	assert.Contains(t, suggestions, "--help")
 	assert.Contains(t, suggestions, "--output")
 	assert.Contains(t, suggestions, "-f")
 }
@@ -74,6 +77,7 @@ func TestCompletionSuggestions_FieldDelimiterValues(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, suggestions, ":")
+	assert.NotContains(t, suggestions, " ")
 }
 
 func TestCompletionSuggestions_LineDelimiterValues(t *testing.T) {
@@ -88,6 +92,20 @@ func TestCompletionSuggestions_LongFieldDelimiterValues(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{":"}, suggestions)
+}
+
+func TestCompletionSuggestions_InlineFieldDelimiterValues(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "--field-delimiter-char=:"}, 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--field-delimiter-char=:"}, suggestions)
+}
+
+func TestCompletionSuggestions_InlineLineDelimiterValues(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "--line-delimiter-char=\\r"}, 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--line-delimiter-char=\\r"}, suggestions)
 }
 
 func TestCompletionSuggestions_NoColumnCompletionWhenFilterIndexesSet(t *testing.T) {
@@ -270,6 +288,16 @@ func TestApplyCompletionFlagValue_SingleDashLongFlags(t *testing.T) {
 
 func TestCompletionValueSuggestions_UnknownFlag(t *testing.T) {
 	assert.Nil(t, completionValueSuggestions("--unknown", ""))
+}
+
+func TestCompletionInlineValueSuggestions(t *testing.T) {
+	assert.Equal(
+		t,
+		[]string{"--field-delimiter-char=:"},
+		completionInlineValueSuggestions("--field-delimiter-char=:"),
+	)
+	assert.Nil(t, completionInlineValueSuggestions("--output=foo"))
+	assert.Nil(t, completionInlineValueSuggestions("--json"))
 }
 
 func TestCompletionPrefixMatches(t *testing.T) {

@@ -19,6 +19,9 @@ const (
 var (
 	completionBooleanFlags = map[string]struct{}{
 		bashCompletionFlag:   {},
+		"-h":                 {},
+		"-help":              {},
+		"--help":             {},
 		"-version":           {},
 		"--version":          {},
 		"-n":                 {},
@@ -50,6 +53,9 @@ var (
 	}
 	completionAllFlags = []string{
 		bashCompletionFlag,
+		"-h",
+		"-help",
+		"--help",
 		"-version",
 		"--version",
 		"-f",
@@ -91,7 +97,7 @@ func bashCompletionScript(binaryName string) string {
 	quotedBinaryName := shellQuote(binaryName)
 
 	return fmt.Sprintf(`_%[2]s_completion() {
-    local cur prev word expect_value positional_count reply
+    local cur prev word expect_value positional_count reply prefix value
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev=""
@@ -106,6 +112,17 @@ func bashCompletionScript(binaryName string) string {
             while IFS= read -r reply; do
                 COMPREPLY+=("${reply}")
             done < <(compgen -f -- "${cur}")
+            return 0
+            ;;
+    esac
+
+    case "${cur}" in
+        -o=*|-output=*|--output=*)
+            prefix="${cur%%=*}="
+            value="${cur#*=}"
+            while IFS= read -r reply; do
+                COMPREPLY+=("${prefix}${reply}")
+            done < <(compgen -f -- "${value}")
             return 0
             ;;
     esac
@@ -132,6 +149,7 @@ func bashCompletionScript(binaryName string) string {
             -output=*|--output=*)
                 continue
                 ;;
+            -h|-help|--help|\
             -version|--version|\
             -n|-no-separate-rows|--no-separate-rows|\
             -nb|-no-borders|--no-borders|\
@@ -202,6 +220,10 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 	}
 
 	current := currentCompletionWord(words, cword)
+	if suggestions := completionInlineValueSuggestions(current); suggestions != nil {
+		return suggestions, nil
+	}
+
 	previous := words[cword-1]
 	if suggestions := completionValueSuggestions(previous, current); suggestions != nil {
 		return suggestions, nil
@@ -296,7 +318,7 @@ func applyCompletionFlagValue(state *completionState, flagName, value string) {
 func completionValueSuggestions(flagName, current string) []string {
 	switch flagName {
 	case "-f", "-field-delimiter-char", "--field-delimiter-char":
-		return completionPrefixMatches([]string{",", ";", "|", ":", "\\t", " "}, current)
+		return completionPrefixMatches([]string{",", ";", "|", ":", "\\t"}, current)
 	case "-l", "-line-delimiter-char", "--line-delimiter-char":
 		return completionPrefixMatches([]string{"\\n", "\\t", "\\r", ":", ";", "|"}, current)
 	default:
@@ -306,6 +328,29 @@ func completionValueSuggestions(flagName, current string) []string {
 
 func completionFlagMatches(current string) []string {
 	return completionPrefixMatches(completionAllFlags, current)
+}
+
+func completionInlineValueSuggestions(current string) []string {
+	flagName, currentValue, hasInlineValue := completionFlagToken(current)
+	if !hasInlineValue {
+		return nil
+	}
+
+	if flagName == "-o" || flagName == "-output" || flagName == "--output" {
+		return nil
+	}
+
+	suggestions := completionValueSuggestions(flagName, currentValue)
+	if suggestions == nil {
+		return nil
+	}
+
+	prefixed := make([]string, 0, len(suggestions))
+	for _, suggestion := range suggestions {
+		prefixed = append(prefixed, flagName+"="+suggestion)
+	}
+
+	return prefixed
 }
 
 func completionPrefixMatches(candidates []string, current string) []string {
