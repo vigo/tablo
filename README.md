@@ -36,6 +36,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   flags:
 
   -version                          display version information (X.X.X)
+  --bash-completion                 print bash completion script
   -f, -field-delimiter-char         field delimiter char to split the line input
                                     (omit for smart split: 2+ whitespace)
   -l, -line-delimiter-char          line delimiter char to split the input
@@ -200,6 +201,30 @@ cat /etc/passwd | tablo -f ":" -n
 │ root                   │ * │ 0   │ 0   │ System Administrator                            │ /var/root                     │ /bin/sh          │
 └────────────────────────┴───┴─────┴─────┴─────────────────────────────────────────────────┴───────────────────────────────┴──────────────────┘
 # output is trimmed...
+```
+
+### Bash Completion
+
+Load completion into your current shell:
+
+```bash
+source <(tablo --bash-completion)
+```
+
+Or save it and load it from your shell profile:
+
+```bash
+tablo --bash-completion > ~/.tablo-completion.bash
+source ~/.tablo-completion.bash
+```
+
+The completion suggests flags, common delimiter values for `-f` / `-l`, file
+paths for the input/output arguments, and column names after you pass an input
+file:
+
+```bash
+tablo -f ";" ./users.csv <TAB>
+tablo -f ";" ./users.csv "First name" <TAB>
 ```
 
 If your input doesn’t have a kind of header, you can use `-fi` or `-filter-indexes`

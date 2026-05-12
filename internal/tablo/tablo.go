@@ -812,6 +812,20 @@ func New(options ...Option) (*Tablo, error) {
 
 // Run runs the command.
 func Run() error {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case bashCompletionFlag:
+			_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))
+			if err != nil {
+				return fmt.Errorf(errorWrapFormat, err)
+			}
+
+			return nil
+		case completeFlag:
+			return runCompletion(os.Args[2:], os.Stdout)
+		}
+	}
+
 	flag.Usage = showUsage
 	flag.CommandLine.Usage = showUsage
 
