@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -96,7 +97,7 @@ func bashCompletionScript(binaryName string) string {
 	functionName := sanitizeCompletionFunctionName(binaryName)
 	quotedBinaryName := shellQuote(binaryName)
 
-	return fmt.Sprintf(`_%[2]s_completion() {
+	return fmt.Sprintf(`_%[1]s_completion() {
     local cur prev word expect_value positional_count reply prefix value
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -167,7 +168,7 @@ func bashCompletionScript(binaryName string) string {
 
     while IFS= read -r reply; do
         COMPREPLY+=("${reply}")
-    done < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[3]s -- "${COMP_WORDS[@]}")
+    done < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[2]s -- "${COMP_WORDS[@]}")
 
     if (( ${#COMPREPLY[@]} > 0 )); then
         return 0
@@ -180,8 +181,8 @@ func bashCompletionScript(binaryName string) string {
     fi
 }
 
-complete -F _%[2]s_completion -- %[4]s
-`, binaryName, functionName, completeFlag, quotedBinaryName)
+complete -F _%[1]s_completion -- %[3]s
+`, functionName, completeFlag, quotedBinaryName)
 }
 
 func runCompletion(words []string, output io.Writer) error {
@@ -401,7 +402,8 @@ func sanitizeCompletionFunctionName(name string) string {
 	}
 
 	sanitized := b.String()
-	if first := rune(sanitized[0]); unicode.IsDigit(first) {
+	first, _ := utf8.DecodeRuneInString(sanitized)
+	if unicode.IsDigit(first) {
 		return "_" + sanitized
 	}
 

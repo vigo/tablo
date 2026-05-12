@@ -813,16 +813,18 @@ func New(options ...Option) (*Tablo, error) {
 // Run runs the command.
 func Run() error {
 	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case bashCompletionFlag:
-			_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))
-			if err != nil {
-				return fmt.Errorf(errorWrapFormat, err)
-			}
+		for i, arg := range os.Args[1:] {
+			switch arg {
+			case bashCompletionFlag:
+				_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))
+				if err != nil {
+					return fmt.Errorf(errorWrapFormat, err)
+				}
 
-			return nil
-		case completeFlag:
-			return runCompletion(os.Args[2:], os.Stdout)
+				return nil
+			case completeFlag:
+				return runCompletion(os.Args[i+2:], os.Stdout)
+			}
 		}
 	}
 
