@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1460,4 +1461,54 @@ func TestRun_PrintBashCompletion_ShortLongFlag(t *testing.T) {
 	_, _ = output.ReadFrom(r)
 
 	assert.Contains(t, output.String(), "complete -F _tablo_completion -- 'tablo'")
+}
+
+func TestRun_DoesNotTreatOutputValueAsBashCompletionFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputFile := filepath.Join(tmpDir, "--bash-completion")
+
+	os.Args = []string{"tablo", "-o", outputFile, "-version"}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	assert.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	assert.NotContains(t, output.String(), "complete -F _tablo_completion")
+	_, statErr := os.Stat(outputFile)
+	assert.NoError(t, statErr)
+}
+
+func TestRun_DoesNotTreatCompletionFlagAfterPositionalAsCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.txt")
+	err := os.WriteFile(inputFile, []byte("hello\n"), 0o600)
+	assert.NoError(t, err)
+
+	os.Args = []string{"tablo", inputFile, "--bash-completion"}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	assert.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	assert.NotContains(t, output.String(), "complete -F _tablo_completion")
 }

@@ -813,8 +813,23 @@ func New(options ...Option) (*Tablo, error) {
 // Run runs the command.
 func Run() error {
 	if len(os.Args) > 1 {
+		skipNext := false
 		for i, arg := range os.Args[1:] {
+			if skipNext {
+				skipNext = false
+				continue
+			}
 			if arg == "--" {
+				break
+			}
+			flagName, _, hasInlineValue := completionFlagToken(arg)
+			if completionHasValueFlag(flagName) {
+				if !hasInlineValue {
+					skipNext = true
+				}
+				continue
+			}
+			if !strings.HasPrefix(arg, "-") || arg == "-" {
 				break
 			}
 			switch arg {

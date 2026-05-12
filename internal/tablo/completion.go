@@ -263,7 +263,9 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 		return nil, err
 	}
 
-	if !afterDoubleDash && (strings.HasPrefix(current, "-") || current == "" && cword == 1) {
+	if !afterDoubleDash &&
+		len(state.positionals) == 0 &&
+		(strings.HasPrefix(current, "-") || current == "" && cword == 1) {
 		return completionFlagMatches(current), nil
 	}
 	if state.filterIndexes || len(state.positionals) == 0 {

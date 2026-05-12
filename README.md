@@ -36,7 +36,8 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
   flags:
 
   -version                          display version information (X.X.X)
-  --bash-completion                 print bash completion script
+  -bash-completion, --bash-completion
+                                    print bash completion script
   -f, -field-delimiter-char         field delimiter char to split the line input
                                     (omit for smart split: 2+ whitespace)
   -l, -line-delimiter-char          line delimiter char to split the input
