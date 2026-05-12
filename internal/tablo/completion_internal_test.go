@@ -27,6 +27,8 @@ func TestBashCompletionScript(t *testing.T) {
 
 	assert.Contains(t, script, "complete -F _tablo_completion tablo")
 	assert.Contains(t, script, completeFlag)
+	assert.Contains(t, script, "positional_count=0")
+	assert.Contains(t, script, "-field-delimiter-char")
 }
 
 func TestSanitizeCompletionFunctionName(t *testing.T) {
@@ -61,6 +63,13 @@ func TestCompletionSuggestions_LineDelimiterValues(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"\\r"}, suggestions)
+}
+
+func TestCompletionSuggestions_LongFieldDelimiterValues(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "-field-delimiter-char", ":"}, 2)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{":"}, suggestions)
 }
 
 func TestCompletionSuggestions_NoColumnCompletionWhenFilterIndexesSet(t *testing.T) {
@@ -175,6 +184,20 @@ func TestParseCompletionState(t *testing.T) {
 	assert.Equal(t, []string{"users.csv"}, state.positionals)
 }
 
+func TestParseCompletionState_SingleDashLongFlags(t *testing.T) {
+	state := completionState{
+		lineDelimiter: defaultLineDelimiter,
+	}
+
+	err := parseCompletionState([]string{"tablo", "-field-delimiter-char=;", "-line-delimiter-char", "\\t", "-filter-indexes", "1,2", "-json", "users.csv"}, 7, &state)
+
+	require.NoError(t, err)
+	assert.Equal(t, ';', state.fieldDelimiter)
+	assert.Equal(t, '\t', state.lineDelimiter)
+	assert.True(t, state.filterIndexes)
+	assert.Empty(t, state.positionals)
+}
+
 func TestCompletionFlagToken(t *testing.T) {
 	flagName, flagValue, hasInlineValue := completionFlagToken("--output=file.txt")
 	assert.Equal(t, "--output", flagName)
@@ -200,6 +223,20 @@ func TestApplyCompletionFlagValue(t *testing.T) {
 	assert.Equal(t, '\r', state.lineDelimiter)
 	assert.Equal(t, '|', state.fieldDelimiter)
 	assert.False(t, state.filterIndexes)
+}
+
+func TestApplyCompletionFlagValue_SingleDashLongFlags(t *testing.T) {
+	state := completionState{
+		lineDelimiter: defaultLineDelimiter,
+	}
+
+	applyCompletionFlagValue(&state, "-line-delimiter-char", "\\r")
+	applyCompletionFlagValue(&state, "-field-delimiter-char", ";")
+	applyCompletionFlagValue(&state, "-filter-indexes", "2")
+
+	assert.Equal(t, '\r', state.lineDelimiter)
+	assert.Equal(t, ';', state.fieldDelimiter)
+	assert.True(t, state.filterIndexes)
 }
 
 func TestCompletionValueSuggestions_UnknownFlag(t *testing.T) {

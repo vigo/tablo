@@ -20,42 +20,58 @@ var (
 		"-version":           {},
 		"--version":          {},
 		"-n":                 {},
+		"-no-separate-rows":  {},
 		"--no-separate-rows": {},
 		"-nb":                {},
+		"-no-borders":        {},
 		"--no-borders":       {},
 		"-nh":                {},
+		"-no-headers":        {},
 		"--no-headers":       {},
 		"-j":                 {},
+		"-json":              {},
 		"--json":             {},
 	}
 	completionValueFlags = map[string]struct{}{
 		"-f":                     {},
+		"-field-delimiter-char":  {},
 		"--field-delimiter-char": {},
 		"-l":                     {},
+		"-line-delimiter-char":   {},
 		"--line-delimiter-char":  {},
 		"-fi":                    {},
+		"-filter-indexes":        {},
 		"--filter-indexes":       {},
 		"-o":                     {},
+		"-output":                {},
 		"--output":               {},
 	}
 	completionAllFlags = []string{
 		"-version",
 		"--version",
 		"-f",
+		"-field-delimiter-char",
 		"--field-delimiter-char",
 		"-l",
+		"-line-delimiter-char",
 		"--line-delimiter-char",
 		"-n",
+		"-no-separate-rows",
 		"--no-separate-rows",
 		"-nb",
+		"-no-borders",
 		"--no-borders",
 		"-nh",
+		"-no-headers",
 		"--no-headers",
 		"-fi",
+		"-filter-indexes",
 		"--filter-indexes",
 		"-j",
+		"-json",
 		"--json",
 		"-o",
+		"-output",
 		"--output",
 	}
 )
@@ -71,28 +87,67 @@ func bashCompletionScript(binaryName string) string {
 	functionName := sanitizeCompletionFunctionName(binaryName)
 
 	return fmt.Sprintf(`_%[1]s_completion() {
-    local cur prev
+    local cur prev word expect_value positional_count
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev=""
+    expect_value=0
+    positional_count=0
     if (( COMP_CWORD > 0 )); then
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     fi
 
     case "${prev}" in
-        -o|--output)
+        -o|-output|--output)
             compopt -o default
             COMPREPLY=( $(compgen -f -- "${cur}") )
             return 0
             ;;
     esac
 
+    for (( i=1; i<COMP_CWORD; i++ )); do
+        word="${COMP_WORDS[i]}"
+
+        if (( expect_value == 1 )); then
+            expect_value=0
+            continue
+        fi
+
+        case "${word}" in
+            -f|-field-delimiter-char|--field-delimiter-char|\
+            -l|-line-delimiter-char|--line-delimiter-char|\
+            -fi|-filter-indexes|--filter-indexes|\
+            -o|-output|--output)
+                expect_value=1
+                continue
+                ;;
+            -field-delimiter-char=*|--field-delimiter-char=*|\
+            -line-delimiter-char=*|--line-delimiter-char=*|\
+            -filter-indexes=*|--filter-indexes=*|\
+            -output=*|--output=*)
+                continue
+                ;;
+            -version|--version|\
+            -n|-no-separate-rows|--no-separate-rows|\
+            -nb|-no-borders|--no-borders|\
+            -nh|-no-headers|--no-headers|\
+            -j|-json|--json)
+                continue
+                ;;
+            -*)
+                continue
+                ;;
+        esac
+
+        positional_count=$(( positional_count + 1 ))
+    done
+
     mapfile -t COMPREPLY < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[3]s -- "${COMP_WORDS[@]}")
     if (( ${#COMPREPLY[@]} > 0 )); then
         return 0
     fi
 
-    if (( COMP_CWORD == 1 )); then
+    if (( positional_count == 0 )) && [[ "${cur}" != -* ]]; then
         compopt -o default
         COMPREPLY=( $(compgen -f -- "${cur}") )
     fi
@@ -212,24 +267,24 @@ func completionHasValueFlag(flagName string) bool {
 
 func applyCompletionFlagValue(state *completionState, flagName, value string) {
 	switch flagName {
-	case "-f", "--field-delimiter-char":
+	case "-f", "-field-delimiter-char", "--field-delimiter-char":
 		if value != "" {
 			state.fieldDelimiter = parseSpecialChars(value)
 		}
-	case "-l", "--line-delimiter-char":
+	case "-l", "-line-delimiter-char", "--line-delimiter-char":
 		if value != "" {
 			state.lineDelimiter = parseSpecialChars(value)
 		}
-	case "-fi", "--filter-indexes":
+	case "-fi", "-filter-indexes", "--filter-indexes":
 		state.filterIndexes = value != ""
 	}
 }
 
 func completionValueSuggestions(flagName, current string) []string {
 	switch flagName {
-	case "-f", "--field-delimiter-char":
+	case "-f", "-field-delimiter-char", "--field-delimiter-char":
 		return completionPrefixMatches([]string{",", ";", "|", ":", "\\t", " "}, current)
-	case "-l", "--line-delimiter-char":
+	case "-l", "-line-delimiter-char", "--line-delimiter-char":
 		return completionPrefixMatches([]string{"\\n", "\\t", "\\r", ":", ";", "|"}, current)
 	default:
 		return nil
