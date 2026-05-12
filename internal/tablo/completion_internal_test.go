@@ -374,6 +374,12 @@ func TestRun_CompleteFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Setenv("COMP_CWORD", "4")
+	oldArgs := os.Args
+	oldFlagSet := flag.CommandLine
+	defer func() {
+		os.Args = oldArgs
+		flag.CommandLine = oldFlagSet
+	}()
 	os.Args = []string{"tablo", "--complete", "--", "tablo", "-f", ";", inputFile, "Us"}
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 

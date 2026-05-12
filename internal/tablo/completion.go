@@ -98,7 +98,7 @@ func bashCompletionScript(binaryName string) string {
 	quotedBinaryName := shellQuote(binaryName)
 
 	return fmt.Sprintf(`_%[1]s_completion() {
-    local cur prev word expect_value positional_count reply prefix value
+    local cur prev word expect_value positional_count reply prefix value i
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev=""
@@ -465,6 +465,9 @@ func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string,
 	flushLine := func() {
 		line := currentLine.String()
 		currentLine.Reset()
+		if delimiter == '\n' {
+			line = strings.TrimSuffix(line, "\r")
+		}
 
 		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
 			return
