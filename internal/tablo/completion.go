@@ -15,6 +15,7 @@ import (
 const (
 	bashCompletionFlag = "--bash-completion"
 	completeFlag       = "--complete"
+	completionByteCap  = 64 * 1024
 )
 
 var (
@@ -221,6 +222,7 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 	}
 
 	current := currentCompletionWord(words, cword)
+	afterDoubleDash := completionAfterDoubleDash(words, cword)
 	if suggestions := completionInlineValueSuggestions(current); suggestions != nil {
 		return suggestions, nil
 	}
@@ -237,7 +239,7 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 		return nil, err
 	}
 
-	if strings.HasPrefix(current, "-") || current == "" && cword == 1 {
+	if !afterDoubleDash && (strings.HasPrefix(current, "-") || current == "" && cword == 1) {
 		return completionFlagMatches(current), nil
 	}
 	if state.filterIndexes || len(state.positionals) == 0 {
@@ -248,6 +250,16 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 	}
 
 	return completeColumnsFromFile(state, state.positionals[0], state.positionals[1:], current)
+}
+
+func completionAfterDoubleDash(words []string, cword int) bool {
+	for i := 1; i < cword && i < len(words); i++ {
+		if words[i] == "--" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func parseCompletionState(words []string, cword int, state *completionState) error {
@@ -461,6 +473,7 @@ func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string,
 	buffered := bufio.NewReader(reader)
 	lines := make([]string, 0, limit)
 	var currentLine strings.Builder
+	bytesRead := 0
 
 	flushLine := func() {
 		line := currentLine.String()
@@ -480,6 +493,13 @@ func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string,
 		r, _, err := buffered.ReadRune()
 		switch err {
 		case nil:
+			bytesRead += utf8.RuneLen(r)
+			if bytesRead > completionByteCap {
+				if currentLine.Len() > 0 {
+					flushLine()
+				}
+				return lines, nil
+			}
 			if r == delimiter {
 				flushLine()
 				continue

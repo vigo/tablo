@@ -814,6 +814,9 @@ func New(options ...Option) (*Tablo, error) {
 func Run() error {
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
+			if arg == "--" {
+				break
+			}
 			switch arg {
 			case bashCompletionFlag:
 				_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))

@@ -127,6 +127,13 @@ func TestCompletionSuggestions_NoColumnCompletionWhenFirstPositionalIsNotFile(t 
 	assert.Nil(t, suggestions)
 }
 
+func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestFlags(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "--", "-weird.csv"}, 2)
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
 func TestCompletionSuggestions_ColumnsFromInputFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	inputFile := filepath.Join(tmpDir, "users.csv")
@@ -359,6 +366,16 @@ func TestReadCompletionLines(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"name,age", "vigo,42"}, lines)
+}
+
+func TestReadCompletionLines_StopsAtByteCap(t *testing.T) {
+	veryLong := strings.Repeat("a", completionByteCap+10)
+
+	lines, err := readCompletionLines(strings.NewReader(veryLong), '\n', 2)
+
+	require.NoError(t, err)
+	require.Len(t, lines, 1)
+	assert.Len(t, lines[0], completionByteCap)
 }
 
 func TestCompleteColumnsFromFile_OpenError(t *testing.T) {
