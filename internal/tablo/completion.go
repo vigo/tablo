@@ -1,6 +1,7 @@
 package tablo
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,7 @@ const (
 
 var (
 	completionBooleanFlags = map[string]struct{}{
+		bashCompletionFlag:   {},
 		"-version":           {},
 		"--version":          {},
 		"-n":                 {},
@@ -47,6 +49,7 @@ var (
 		"--output":               {},
 	}
 	completionAllFlags = []string{
+		bashCompletionFlag,
 		"-version",
 		"--version",
 		"-f",
@@ -86,7 +89,7 @@ type completionState struct {
 func bashCompletionScript(binaryName string) string {
 	functionName := sanitizeCompletionFunctionName(binaryName)
 
-	return fmt.Sprintf(`_%[1]s_completion() {
+	return fmt.Sprintf(`_%[2]s_completion() {
     local cur prev word expect_value positional_count
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -342,7 +345,12 @@ func sanitizeCompletionFunctionName(name string) string {
 		return "tablo"
 	}
 
-	return b.String()
+	sanitized := b.String()
+	if first := rune(sanitized[0]); unicode.IsDigit(first) {
+		return "_" + sanitized
+	}
+
+	return sanitized
 }
 
 func completeColumnsFromFile(state completionState, path string, selected []string, current string) ([]string, error) {
@@ -352,32 +360,20 @@ func completeColumnsFromFile(state completionState, path string, selected []stri
 	}
 	defer func() { _ = file.Close() }()
 
-	input, err := readInput(file)
+	lines, err := readCompletionLines(file, state.lineDelimiter, delimiterProbeLines)
 	if err != nil {
 		return nil, err
 	}
-
-	lines := strings.FieldsFunc(input, func(r rune) bool {
-		return r == state.lineDelimiter
-	})
-
-	filteredLines := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-		filteredLines = append(filteredLines, line)
-	}
-	if len(filteredLines) == 0 {
+	if len(lines) == 0 {
 		return nil, nil
 	}
 
 	tbl := &Tablo{
 		FieldDelimiter: state.fieldDelimiter,
 	}
-	tbl.ensureDetectedFieldDelimiter(filteredLines)
+	tbl.ensureDetectedFieldDelimiter(lines)
 
-	headers := tbl.splitFields(filteredLines[0])
+	headers := tbl.splitFields(lines[0])
 	seen := make(map[string]struct{}, len(selected))
 	for _, column := range selected {
 		seen[strings.ToLower(column)] = struct{}{}
@@ -394,4 +390,46 @@ func completeColumnsFromFile(state completionState, path string, selected []stri
 	}
 
 	return suggestions, nil
+}
+
+func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	buffered := bufio.NewReader(reader)
+	lines := make([]string, 0, limit)
+	var currentLine strings.Builder
+
+	flushLine := func() {
+		line := currentLine.String()
+		currentLine.Reset()
+
+		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+			return
+		}
+
+		lines = append(lines, line)
+	}
+
+	for len(lines) < limit {
+		r, _, err := buffered.ReadRune()
+		switch err {
+		case nil:
+			if r == delimiter {
+				flushLine()
+				continue
+			}
+			currentLine.WriteRune(r)
+		case io.EOF:
+			if currentLine.Len() > 0 {
+				flushLine()
+			}
+			return lines, nil
+		default:
+			return nil, fmt.Errorf(errorWrapFormat, err)
+		}
+	}
+
+	return lines, nil
 }

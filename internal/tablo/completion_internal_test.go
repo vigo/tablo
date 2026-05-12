@@ -25,6 +25,7 @@ func (f failingWriter) Write([]byte) (int, error) {
 func TestBashCompletionScript(t *testing.T) {
 	script := bashCompletionScript("tablo")
 
+	assert.Contains(t, script, "_tablo_completion() {")
 	assert.Contains(t, script, "complete -F _tablo_completion tablo")
 	assert.Contains(t, script, completeFlag)
 	assert.Contains(t, script, "positional_count=0")
@@ -33,7 +34,16 @@ func TestBashCompletionScript(t *testing.T) {
 
 func TestSanitizeCompletionFunctionName(t *testing.T) {
 	assert.Equal(t, "tablo_dev", sanitizeCompletionFunctionName("tablo-dev"))
+	assert.Equal(t, "_1tablo", sanitizeCompletionFunctionName("1tablo"))
 	assert.Equal(t, "tablo", sanitizeCompletionFunctionName(""))
+}
+
+func TestBashCompletionScript_UsesSanitizedFunctionName(t *testing.T) {
+	script := bashCompletionScript("tablo-dev")
+
+	assert.Contains(t, script, "_tablo_dev_completion() {")
+	assert.Contains(t, script, "complete -F _tablo_dev_completion tablo-dev")
+	assert.NotContains(t, script, "_tablo-dev_completion() {")
 }
 
 func TestCompletionSuggestions_Flags(t *testing.T) {
@@ -47,6 +57,7 @@ func TestCompletionSuggestions_AllFlagsForFirstArgument(t *testing.T) {
 	suggestions, err := completionSuggestions([]string{"tablo", ""}, 1)
 
 	require.NoError(t, err)
+	assert.Contains(t, suggestions, bashCompletionFlag)
 	assert.Contains(t, suggestions, "--output")
 	assert.Contains(t, suggestions, "-f")
 }
@@ -273,6 +284,35 @@ func TestCompleteColumnsFromFile_CommentOnlyInput(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, suggestions)
+}
+
+func TestCompleteColumnsFromFile_ReadsOnlyHeaderProbeLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	content := strings.Join([]string{
+		"# comment",
+		"",
+		"Username,Identifier,First name",
+		"booker12,9012,Rachel",
+		"grey07,2070,Laura",
+		"johnson81,4081,Craig",
+		"jenkins46,9346,Mary",
+		"smith79,5079,Jamie",
+	}, "\n")
+	err := os.WriteFile(inputFile, []byte(content), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completeColumnsFromFile(completionState{lineDelimiter: '\n'}, inputFile, nil, "Fi")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"First name"}, suggestions)
+}
+
+func TestReadCompletionLines(t *testing.T) {
+	lines, err := readCompletionLines(strings.NewReader("# comment\n\nname,age\nvigo,42\nignored,after\n"), '\n', 2)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"name,age", "vigo,42"}, lines)
 }
 
 func TestCompleteColumnsFromFile_OpenError(t *testing.T) {
