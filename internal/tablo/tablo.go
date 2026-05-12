@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -34,13 +35,14 @@ const (
 	helpFieldDelimiterChar = "field delimiter char to split the line input"
 	helpNoSeparateRows     = "do not draw separation line under rows"
 	helpNoBorders          = "do not draw borders"
-	helpNoHeaders          = "hide headers line in filter by header result"
+	helpNoHeaders          = "hide the selected or detected header row"
 	helpFilterIndexes      = "filter columns by index"
 	helpJSONOutput         = "render output as json"
 
 	defaultOutput        = "stdout"
 	defaultLineDelimiter = '\n'
 	defaultSpaceAmount   = 2
+	delimiterProbeLines  = 5
 )
 
 // sentinel errors.
@@ -145,6 +147,56 @@ func (t *Tablo) splitFields(line string) []string {
 	return strings.Split(line, string(t.FieldDelimiter))
 }
 
+func (t *Tablo) detectFieldDelimiter(lines []string) rune {
+	if t.FieldDelimiter != 0 {
+		return t.FieldDelimiter
+	}
+
+	candidates := []rune{',', ';', '\t', '|'}
+	maxLines := min(len(lines), delimiterProbeLines)
+
+	for _, candidate := range candidates {
+		fieldCount := 0
+		matchedLines := 0
+
+		for i := 0; i < maxLines; i++ {
+			line := lines[i]
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+
+			currentCount := strings.Count(line, string(candidate)) + 1
+			if currentCount <= 1 {
+				fieldCount = 0
+				break
+			}
+
+			if fieldCount == 0 {
+				fieldCount = currentCount
+			} else if fieldCount != currentCount {
+				fieldCount = 0
+				break
+			}
+
+			matchedLines++
+		}
+
+		if matchedLines >= 2 && fieldCount > 1 {
+			return candidate
+		}
+	}
+
+	return 0
+}
+
+func (t *Tablo) ensureDetectedFieldDelimiter(lines []string) {
+	if t.FieldDelimiter != 0 {
+		return
+	}
+
+	t.FieldDelimiter = t.detectFieldDelimiter(lines)
+}
+
 func (t *Tablo) selectColumnIndices(headers []string) []int {
 	if len(headers) == 0 || len(t.Args) == 0 {
 		return nil
@@ -205,25 +257,30 @@ func (t *Tablo) selectFields(fields []string, columnIndices []int) []string {
 }
 
 func isHeaderLikeField(field string) bool {
+	field = strings.Trim(field, `"'`)
+	field = strings.TrimLeft(field, "_-")
 	field = strings.TrimSpace(field)
 	if field == "" {
 		return false
 	}
 
-	for i, r := range field {
+	hasLetter := false
+	for _, r := range field {
 		switch {
-		case r == ' ' || r == '_' || r == '-':
+		case unicode.IsLetter(r):
+			hasLetter = true
+		case unicode.IsDigit(r):
 			continue
-		case i == 0 && (r < 'A' || (r > 'Z' && r < 'a') || r > 'z'):
-			return false
-		case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+		case unicode.IsSpace(r):
+			continue
+		case strings.ContainsRune("_-./():", r):
 			continue
 		default:
 			return false
 		}
 	}
 
-	return true
+	return hasLetter
 }
 
 func looksLikeHeader(fields []string) bool {
@@ -247,6 +304,8 @@ type jsonDataset struct {
 }
 
 func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
+	t.ensureDetectedFieldDelimiter(lines)
+
 	if len(lines) == 0 {
 		return jsonDataset{
 			rows: [][]string{},
@@ -268,7 +327,7 @@ func (t *Tablo) buildJSONDataset(lines []string) jsonDataset {
 	}
 
 	start := 0
-	if dataset.hasHeader {
+	if dataset.hasHeader || t.shouldSkipFirstRow(lines) {
 		start = 1
 	}
 
@@ -440,7 +499,7 @@ func (t *Tablo) getReadFrom() (*os.File, error) {
 }
 
 func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
-	if len(lines) == 0 || len(t.Args) == 0 {
+	if len(lines) == 0 || len(t.FilterIndexes) > 0 || len(t.Args) == 0 {
 		return nil
 	}
 
@@ -454,8 +513,10 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 		}
 	} else {
 		if len(lines) > 1 {
-			tw.AppendHeader(stringSliceToRow(headers))
-		} else {
+			if !t.HideHeaders {
+				tw.AppendHeader(stringSliceToRow(headers))
+			}
+		} else if !t.HideHeaders {
 			tw.AppendRow(stringSliceToRow(headers))
 		}
 	}
@@ -465,13 +526,33 @@ func (t *Tablo) processHeaders(tw table.Writer, lines []string) []int {
 
 func (t *Tablo) processRows(tw table.Writer, lines []string, columnIndices []int) {
 	for i, line := range lines {
-		if len(t.Args) > 0 && i == 0 {
+		if i == 0 && t.shouldSkipFirstRow(lines) {
 			continue
 		}
 		fields := t.splitFields(line)
 		selectedFields := t.selectFields(fields, columnIndices)
 		tw.AppendRow(stringSliceToRow(selectedFields))
 	}
+}
+
+func (t *Tablo) shouldSkipFirstRow(lines []string) bool {
+	if len(lines) == 0 {
+		return false
+	}
+
+	if len(t.FilterIndexes) > 0 {
+		return t.HideHeaders && t.FieldDelimiter != 0 && looksLikeHeader(t.splitFields(lines[0]))
+	}
+
+	if len(t.Args) > 0 {
+		return true
+	}
+
+	if !t.HideHeaders || t.FieldDelimiter == 0 {
+		return false
+	}
+
+	return looksLikeHeader(t.splitFields(lines[0]))
 }
 
 // Tabelize generates tablized output.
@@ -511,6 +592,8 @@ func (t *Tablo) Tabelize() error {
 	if t.JSONOutput {
 		return t.renderJSON(lines)
 	}
+
+	t.ensureDetectedFieldDelimiter(lines)
 
 	drawBorders := !t.DrawBorder
 	drawSeparateRowsLine := !t.SeparateRows

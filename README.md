@@ -42,7 +42,7 @@ usage: tablo [-flags] [COLUMN] [COLUMN] [COLUMN]
                                     (default: "\n")
   -n, -no-separate-rows             do not draw separation line under rows
   -nb, -no-borders                  do not draw borders
-  -nh, -no-headers                  hide headers line in filter by header result
+  -nh, -no-headers                  hide the selected or detected header row
   -fi, -filter-indexes              filter columns by index
   -j, -json                         render output as json
   -o, -output                       where to send output, can be file path or stdout
@@ -143,7 +143,9 @@ this is line
 - **Smart mode** (when `-f` is omitted): splits on **2 or more consecutive
   whitespace characters**. This is ideal for aligned column output from tools
   like `docker images`, `ps aux`, `ls -l`, where cell values may contain a
-  single space (e.g. `"2 weeks ago"`, `"Up 22 hours"`).
+  single space (e.g. `"2 weeks ago"`, `"Up 22 hours"`). When the input looks
+  like delimited data (CSV/TSV or similar), `tablo` auto-detects common
+  delimiters such as `,`, `;`, tab, and `|`.
 - **Exact mode** (when `-f <char>` is given): splits on **each occurrence** of
   the given character. Consecutive delimiters preserve empty cells, matching
   CSV semantics.
@@ -318,6 +320,15 @@ cat /path/to/username.csv | tablo -f ";" -n
 │ jenkins46 │ 9346       │ Mary       │ Jenkins   │
 │ smith79   │ 5079       │ Jamie      │ Smith     │
 └───────────┴────────────┴────────────┴───────────┘
+
+cat /path/to/username.csv | tablo -f ";" -n -nh
+┌───────────┬──────┬────────┬─────────┐
+│ booker12  │ 9012 │ Rachel │ Booker  │
+│ grey07    │ 2070 │ Laura  │ Grey    │
+│ johnson81 │ 4081 │ Craig  │ Johnson │
+│ jenkins46 │ 9346 │ Mary   │ Jenkins │
+│ smith79   │ 5079 │ Jamie  │ Smith   │
+└───────────┴──────┴────────┴─────────┘
 
 cat /path/to/username.csv | tablo -f ";" -n username
 ┌───────────┐
