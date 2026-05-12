@@ -29,6 +29,10 @@ func TestBashCompletionScript(t *testing.T) {
 	assert.Contains(t, script, "complete -F _tablo_completion -- 'tablo'")
 	assert.Contains(t, script, completeFlag)
 	assert.Contains(t, script, "positional_count=0")
+	assert.Contains(t, script, "saw_double_dash=0")
+	assert.Contains(t, script, "if (( saw_double_dash == 0 )); then")
+	assert.Contains(t, script, "if (( saw_double_dash == 1 )); then")
+	assert.Contains(t, script, "-fi|-filter-indexes|--filter-indexes")
 	assert.Contains(t, script, "-field-delimiter-char")
 	assert.Contains(t, script, "-o=*|-output=*|--output=*")
 	assert.NotContains(t, script, "mapfile")
@@ -65,6 +69,7 @@ func TestCompletionSuggestions_AllFlagsForFirstArgument(t *testing.T) {
 	suggestions, err := completionSuggestions([]string{"tablo", ""}, 1)
 
 	require.NoError(t, err)
+	assert.Contains(t, suggestions, shortBashCompletionFlag)
 	assert.Contains(t, suggestions, bashCompletionFlag)
 	assert.Contains(t, suggestions, "-h")
 	assert.Contains(t, suggestions, "--help")
@@ -129,6 +134,20 @@ func TestCompletionSuggestions_NoColumnCompletionWhenFirstPositionalIsNotFile(t 
 
 func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestFlags(t *testing.T) {
 	suggestions, err := completionSuggestions([]string{"tablo", "--", "-weird.csv"}, 2)
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
+func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestFlagValues(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "--", "-f"}, 2)
+
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
+func TestCompletionSuggestions_AfterDoubleDashDoesNotSuggestInlineFlagValues(t *testing.T) {
+	suggestions, err := completionSuggestions([]string{"tablo", "--", "--field-delimiter-char=:"}, 2)
 
 	require.NoError(t, err)
 	assert.Nil(t, suggestions)

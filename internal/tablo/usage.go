@@ -11,7 +11,8 @@ const usage = `usage: %[1]s [-flags] [COLUMN] [COLUMN] [COLUMN]
   flags:
 
   -version                          display version information (%s)
-  --bash-completion                 print bash completion script
+  -bash-completion, --bash-completion
+                                    print bash completion script
   -f, -field-delimiter-char         %s
                                     (omit for smart split: 2+ whitespace)
   -l, -line-delimiter-char          %s

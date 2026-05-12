@@ -13,31 +13,33 @@ import (
 )
 
 const (
-	bashCompletionFlag = "--bash-completion"
-	completeFlag       = "--complete"
-	completionByteCap  = 64 * 1024
+	shortBashCompletionFlag = "-bash-completion"
+	bashCompletionFlag      = "--bash-completion"
+	completeFlag            = "--complete"
+	completionByteCap       = 64 * 1024
 )
 
 var (
 	completionBooleanFlags = map[string]struct{}{
-		bashCompletionFlag:   {},
-		"-h":                 {},
-		"-help":              {},
-		"--help":             {},
-		"-version":           {},
-		"--version":          {},
-		"-n":                 {},
-		"-no-separate-rows":  {},
-		"--no-separate-rows": {},
-		"-nb":                {},
-		"-no-borders":        {},
-		"--no-borders":       {},
-		"-nh":                {},
-		"-no-headers":        {},
-		"--no-headers":       {},
-		"-j":                 {},
-		"-json":              {},
-		"--json":             {},
+		shortBashCompletionFlag: {},
+		bashCompletionFlag:      {},
+		"-h":                    {},
+		"-help":                 {},
+		"--help":                {},
+		"-version":              {},
+		"--version":             {},
+		"-n":                    {},
+		"-no-separate-rows":     {},
+		"--no-separate-rows":    {},
+		"-nb":                   {},
+		"-no-borders":           {},
+		"--no-borders":          {},
+		"-nh":                   {},
+		"-no-headers":           {},
+		"--no-headers":          {},
+		"-j":                    {},
+		"-json":                 {},
+		"--json":                {},
 	}
 	completionValueFlags = map[string]struct{}{
 		"-f":                     {},
@@ -54,6 +56,7 @@ var (
 		"--output":               {},
 	}
 	completionAllFlags = []string{
+		shortBashCompletionFlag,
 		bashCompletionFlag,
 		"-h",
 		"-help",
@@ -99,35 +102,16 @@ func bashCompletionScript(binaryName string) string {
 	quotedBinaryName := shellQuote(binaryName)
 
 	return fmt.Sprintf(`_%[1]s_completion() {
-    local cur prev word expect_value positional_count reply prefix value i
+    local cur prev word expect_value positional_count reply prefix value saw_double_dash i
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev=""
     expect_value=0
     positional_count=0
+    saw_double_dash=0
     if (( COMP_CWORD > 0 )); then
         prev="${COMP_WORDS[COMP_CWORD-1]}"
     fi
-
-    case "${prev}" in
-        -o|-output|--output)
-            while IFS= read -r reply; do
-                COMPREPLY+=("${reply}")
-            done < <(compgen -f -- "${cur}")
-            return 0
-            ;;
-    esac
-
-    case "${cur}" in
-        -o=*|-output=*|--output=*)
-            prefix="${cur%%=*}="
-            value="${cur#*=}"
-            while IFS= read -r reply; do
-                COMPREPLY+=("${prefix}${reply}")
-            done < <(compgen -f -- "${value}")
-            return 0
-            ;;
-    esac
 
     for (( i=1; i<COMP_CWORD; i++ )); do
         word="${COMP_WORDS[i]}"
@@ -136,8 +120,16 @@ func bashCompletionScript(binaryName string) string {
             expect_value=0
             continue
         fi
+        if (( saw_double_dash == 1 )); then
+            positional_count=$(( positional_count + 1 ))
+            continue
+        fi
 
         case "${word}" in
+            --)
+                saw_double_dash=1
+                continue
+                ;;
             -f|-field-delimiter-char|--field-delimiter-char|\
             -l|-line-delimiter-char|--line-delimiter-char|\
             -fi|-filter-indexes|--filter-indexes|\
@@ -167,6 +159,28 @@ func bashCompletionScript(binaryName string) string {
         positional_count=$(( positional_count + 1 ))
     done
 
+    if (( saw_double_dash == 0 )); then
+        case "${prev}" in
+            -o|-output|--output)
+                while IFS= read -r reply; do
+                    COMPREPLY+=("${reply}")
+                done < <(compgen -f -- "${cur}")
+                return 0
+                ;;
+        esac
+
+        case "${cur}" in
+            -o=*|-output=*|--output=*)
+                prefix="${cur%%=*}="
+                value="${cur#*=}"
+                while IFS= read -r reply; do
+                    COMPREPLY+=("${prefix}${reply}")
+                done < <(compgen -f -- "${value}")
+                return 0
+                ;;
+        esac
+    fi
+
     while IFS= read -r reply; do
         COMPREPLY+=("${reply}")
     done < <(COMP_CWORD="${COMP_CWORD}" "${COMP_WORDS[0]}" %[2]s -- "${COMP_WORDS[@]}")
@@ -175,7 +189,15 @@ func bashCompletionScript(binaryName string) string {
         return 0
     fi
 
-    if (( positional_count == 0 )) && [[ "${cur}" != -* ]]; then
+    case "${prev}" in
+        -f|-field-delimiter-char|--field-delimiter-char|\
+        -l|-line-delimiter-char|--line-delimiter-char|\
+        -fi|-filter-indexes|--filter-indexes)
+            return 0
+            ;;
+    esac
+
+    if (( positional_count == 0 )) && { [[ "${cur}" != -* ]] || (( saw_double_dash == 1 )); }; then
         while IFS= read -r reply; do
             COMPREPLY+=("${reply}")
         done < <(compgen -f -- "${cur}")
@@ -223,13 +245,15 @@ func completionSuggestions(words []string, cword int) ([]string, error) {
 
 	current := currentCompletionWord(words, cword)
 	afterDoubleDash := completionAfterDoubleDash(words, cword)
-	if suggestions := completionInlineValueSuggestions(current); suggestions != nil {
-		return suggestions, nil
-	}
+	if !afterDoubleDash {
+		if suggestions := completionInlineValueSuggestions(current); suggestions != nil {
+			return suggestions, nil
+		}
 
-	previous := words[cword-1]
-	if suggestions := completionValueSuggestions(previous, current); suggestions != nil {
-		return suggestions, nil
+		previous := words[cword-1]
+		if suggestions := completionValueSuggestions(previous, current); suggestions != nil {
+			return suggestions, nil
+		}
 	}
 
 	state := completionState{
@@ -490,10 +514,10 @@ func readCompletionLines(reader io.Reader, delimiter rune, limit int) ([]string,
 	}
 
 	for len(lines) < limit {
-		r, _, err := buffered.ReadRune()
+		r, size, err := buffered.ReadRune()
 		switch err {
 		case nil:
-			bytesRead += utf8.RuneLen(r)
+			bytesRead += size
 			if bytesRead > completionByteCap {
 				if currentLine.Len() > 0 {
 					flushLine()

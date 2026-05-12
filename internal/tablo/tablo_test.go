@@ -1397,6 +1397,7 @@ func TestRun_ShowUsage_WithHelpFlag(t *testing.T) {
 	assert.ErrorIs(t, err, flag.ErrHelp)
 	assert.Contains(t, buf.String(), "usage:")
 	assert.Contains(t, buf.String(), "tablo")
+	assert.Contains(t, buf.String(), "-bash-completion")
 	assert.Contains(t, buf.String(), "--bash-completion")
 }
 
@@ -1423,6 +1424,26 @@ func TestRun_PrintBashCompletion(t *testing.T) {
 
 func TestRun_PrintBashCompletion_AfterOtherFlags(t *testing.T) {
 	os.Args = []string{"tablo", "-n", "--bash-completion"}
+	resetFlags()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	assert.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	err = tablo.Run()
+	assert.NoError(t, err)
+	_ = w.Close()
+
+	output := new(BytesWriteCloser)
+	_, _ = output.ReadFrom(r)
+
+	assert.Contains(t, output.String(), "complete -F _tablo_completion -- 'tablo'")
+}
+
+func TestRun_PrintBashCompletion_ShortLongFlag(t *testing.T) {
+	os.Args = []string{"tablo", "-bash-completion"}
 	resetFlags()
 
 	oldStdout := os.Stdout

@@ -818,7 +818,7 @@ func Run() error {
 				break
 			}
 			switch arg {
-			case bashCompletionFlag:
+			case shortBashCompletionFlag, bashCompletionFlag:
 				_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))
 				if err != nil {
 					return fmt.Errorf(errorWrapFormat, err)
