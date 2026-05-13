@@ -230,6 +230,80 @@ func TestCompletionSuggestions_ColumnsExcludeAlreadySelected(t *testing.T) {
 	assert.Equal(t, []string{"Identifier", "First name"}, suggestions)
 }
 
+func TestCompletionSuggestions_DequotesDoubleQuotedFieldDelimiterValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username,Identifier,First name\nbooker12,9012,Rachel\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions([]string{"tablo", "-f", `","`, inputFile, ""}, 4)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier", "First name"}, suggestions)
+}
+
+func TestCompletionSuggestions_DequotesSingleQuotedFieldDelimiterValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username;Identifier;First name\nbooker12;9012;Rachel\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions([]string{"tablo", "-f", `';'`, inputFile, ""}, 4)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier", "First name"}, suggestions)
+}
+
+func TestCompletionSuggestions_DequotesQuotedInputFilePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username,Identifier\nbooker12,9012\n"), 0o600)
+	require.NoError(t, err)
+
+	quotedPath := `"` + inputFile + `"`
+	suggestions, err := completionSuggestions([]string{"tablo", "-f", ",", quotedPath, ""}, 4)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier"}, suggestions)
+}
+
+func TestCompletionSuggestions_DequotesInlineFieldDelimiterValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions([]string{"tablo", `--field-delimiter-char=";"`, inputFile, ""}, 3)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier"}, suggestions)
+}
+
+func TestDequoteCompletionToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"empty", "", ""},
+		{"single char", `"`, `"`},
+		{"matched double quotes", `","`, `,`},
+		{"matched single quotes", `';'`, `;`},
+		{"empty matched double", `""`, ``},
+		{"unmatched leading double", `"abc`, `"abc`},
+		{"unmatched trailing double", `abc"`, `abc"`},
+		{"mixed quotes", `"abc'`, `"abc'`},
+		{"no quotes", `abc`, `abc`},
+		{"inline path with internal quotes only", `"a"b"`, `a"b`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, dequoteCompletionToken(tt.input))
+		})
+	}
+}
+
 func TestRunCompletion_NoWords(t *testing.T) {
 	var output bytes.Buffer
 

@@ -419,6 +419,12 @@ rake test            # run test
 
 ## Change Log
 
+**2026-05-13**
+
+- fix bash completion when flag values or file paths are surrounded by quotes
+  (e.g. `tablo -f "," users.csv <TAB>`); matched `"…"` and `'…'` wrappers are
+  now stripped before suggestions are computed
+
 **2026-05-10**
 
 - add `-j` / `-json` output mode

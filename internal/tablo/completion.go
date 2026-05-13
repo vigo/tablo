@@ -246,6 +246,8 @@ func runCompletion(words []string, output io.Writer) error {
 }
 
 func completionSuggestions(words []string, cword int) ([]string, error) {
+	words = dequoteCompletionWords(words)
+
 	if len(words) == 0 || cword <= 0 {
 		return completionFlagMatches(currentCompletionWord(words, cword)), nil
 	}
@@ -337,10 +339,33 @@ func parseCompletionState(words []string, cword int, state *completionState) err
 
 func completionFlagToken(token string) (flagName, flagValue string, hasInlineValue bool) {
 	if head, tail, ok := strings.Cut(token, "="); ok {
-		return head, tail, true
+		return head, dequoteCompletionToken(tail), true
 	}
 
 	return token, "", false
+}
+
+func dequoteCompletionWords(words []string) []string {
+	out := make([]string, len(words))
+	for i, word := range words {
+		out[i] = dequoteCompletionToken(word)
+	}
+
+	return out
+}
+
+func dequoteCompletionToken(token string) string {
+	if len(token) < 2 {
+		return token
+	}
+
+	first := token[0]
+	last := token[len(token)-1]
+	if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+		return token[1 : len(token)-1]
+	}
+
+	return token
 }
 
 func completionHasBooleanFlag(flagName string) bool {
