@@ -246,6 +246,7 @@ func runCompletion(words []string, output io.Writer) error {
 }
 
 func completionSuggestions(words []string, cword int) ([]string, error) {
+	words, cword = joinEqualsTokens(words, cword)
 	words = dequoteCompletionWords(words)
 
 	if len(words) == 0 || cword <= 0 {
@@ -343,6 +344,54 @@ func completionFlagToken(token string) (flagName, flagValue string, hasInlineVal
 	}
 
 	return token, "", false
+}
+
+// joinEqualsTokens rebuilds <flag>=<value> from the three-token form Bash
+// produces when COMP_WORDBREAKS contains '=' (the default). The cword index
+// is remapped to point at the joined slot.
+func joinEqualsTokens(words []string, cword int) ([]string, int) {
+	if len(words) == 0 {
+		return words, cword
+	}
+
+	const (
+		flagEqualsTokens         = 2
+		flagEqualsAndValueTokens = 3
+	)
+
+	out := make([]string, 0, len(words))
+	mapping := make([]int, len(words))
+	i := 0
+	for i < len(words) {
+		if i+1 < len(words) && words[i+1] == "=" && len(words[i]) > 1 && strings.HasPrefix(words[i], "-") {
+			value := ""
+			consumed := flagEqualsTokens
+			if i+2 < len(words) {
+				value = words[i+2]
+				consumed = flagEqualsAndValueTokens
+			}
+
+			out = append(out, words[i]+"="+value)
+			outIdx := len(out) - 1
+			for k := 0; k < consumed; k++ {
+				mapping[i+k] = outIdx
+			}
+			i += consumed
+
+			continue
+		}
+
+		out = append(out, words[i])
+		mapping[i] = len(out) - 1
+		i++
+	}
+
+	newCword := cword
+	if cword >= 0 && cword < len(mapping) {
+		newCword = mapping[cword]
+	}
+
+	return out, newCword
 }
 
 func dequoteCompletionWords(words []string) []string {

@@ -279,6 +279,139 @@ func TestCompletionSuggestions_DequotesInlineFieldDelimiterValue(t *testing.T) {
 	assert.Equal(t, []string{"Username", "Identifier"}, suggestions)
 }
 
+// Bash's default COMP_WORDBREAKS contains '=', so a user-typed
+// `--field-delimiter-char=";"` is delivered as three separate words.
+// This is the form completion actually sees at runtime.
+func TestCompletionSuggestions_SplitLongInlineFieldDelimiterValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username;Identifier\nbooker12;9012\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions(
+		[]string{"tablo", "--field-delimiter-char", "=", `";"`, inputFile, ""},
+		5,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier"}, suggestions)
+}
+
+func TestCompletionSuggestions_SplitShortInlineFieldDelimiterValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "users.csv")
+	err := os.WriteFile(inputFile, []byte("Username,Identifier\nbooker12,9012\n"), 0o600)
+	require.NoError(t, err)
+
+	suggestions, err := completionSuggestions(
+		[]string{"tablo", "-f", "=", `","`, inputFile, ""},
+		5,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Username", "Identifier"}, suggestions)
+}
+
+func TestCompletionSuggestions_SplitInlineValueSuggestion(t *testing.T) {
+	// User is mid-typing `--field-delimiter-char=` and presses TAB before any value.
+	// Bash delivers ["--field-delimiter-char", "=", ""] with cword on the trailing empty.
+	suggestions, err := completionSuggestions(
+		[]string{"tablo", "--field-delimiter-char", "=", ""},
+		3,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"--field-delimiter-char=,",
+		"--field-delimiter-char=;",
+		"--field-delimiter-char=|",
+		"--field-delimiter-char=:",
+		"--field-delimiter-char=\\t",
+	}, suggestions)
+}
+
+func TestJoinEqualsTokens(t *testing.T) {
+	tests := []struct {
+		name        string
+		words       []string
+		cword       int
+		wantWords   []string
+		wantCword   int
+	}{
+		{
+			name:      "no equals",
+			words:     []string{"tablo", "-f", ","},
+			cword:     2,
+			wantWords: []string{"tablo", "-f", ","},
+			wantCword: 2,
+		},
+		{
+			name:      "long flag with value",
+			words:     []string{"tablo", "--field-delimiter-char", "=", `";"`, "f.csv", ""},
+			cword:     5,
+			wantWords: []string{"tablo", `--field-delimiter-char=";"`, "f.csv", ""},
+			wantCword: 3,
+		},
+		{
+			name:      "cword on the flag itself",
+			words:     []string{"tablo", "--field-delimiter-char", "=", `";"`},
+			cword:     1,
+			wantWords: []string{"tablo", `--field-delimiter-char=";"`},
+			wantCword: 1,
+		},
+		{
+			name:      "cword on the equals",
+			words:     []string{"tablo", "--field-delimiter-char", "=", `";"`},
+			cword:     2,
+			wantWords: []string{"tablo", `--field-delimiter-char=";"`},
+			wantCword: 1,
+		},
+		{
+			name:      "cword on the value",
+			words:     []string{"tablo", "--field-delimiter-char", "=", `";"`},
+			cword:     3,
+			wantWords: []string{"tablo", `--field-delimiter-char=";"`},
+			wantCword: 1,
+		},
+		{
+			name:      "partial value (trailing empty)",
+			words:     []string{"tablo", "--field-delimiter-char", "=", ""},
+			cword:     3,
+			wantWords: []string{"tablo", "--field-delimiter-char="},
+			wantCword: 1,
+		},
+		{
+			name:      "short flag",
+			words:     []string{"tablo", "-f", "=", `","`, "f.csv"},
+			cword:     4,
+			wantWords: []string{"tablo", `-f=","`, "f.csv"},
+			wantCword: 2,
+		},
+		{
+			name:      "bare equals at start is left alone",
+			words:     []string{"tablo", "=", "value"},
+			cword:     2,
+			wantWords: []string{"tablo", "=", "value"},
+			wantCword: 2,
+		},
+		{
+			name:      "equals without flag prefix is left alone",
+			words:     []string{"tablo", "foo", "=", "bar"},
+			cword:     3,
+			wantWords: []string{"tablo", "foo", "=", "bar"},
+			wantCword: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotWords, gotCword := joinEqualsTokens(tt.words, tt.cword)
+			assert.Equal(t, tt.wantWords, gotWords)
+			assert.Equal(t, tt.wantCword, gotCword)
+		})
+	}
+}
+
 func TestDequoteCompletionToken(t *testing.T) {
 	tests := []struct {
 		name     string
