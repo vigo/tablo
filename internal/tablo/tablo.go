@@ -812,6 +812,40 @@ func New(options ...Option) (*Tablo, error) {
 
 // Run runs the command.
 func Run() error {
+	if len(os.Args) > 1 {
+		skipNext := false
+		for i, arg := range os.Args[1:] {
+			if skipNext {
+				skipNext = false
+				continue
+			}
+			if arg == "--" {
+				break
+			}
+			flagName, _, hasInlineValue := completionFlagToken(arg)
+			if completionHasValueFlag(flagName) {
+				if !hasInlineValue {
+					skipNext = true
+				}
+				continue
+			}
+			if !strings.HasPrefix(arg, "-") || arg == "-" {
+				break
+			}
+			switch arg {
+			case shortBashCompletionFlag, bashCompletionFlag:
+				_, err := fmt.Fprint(os.Stdout, bashCompletionScript(filepath.Base(os.Args[0])))
+				if err != nil {
+					return fmt.Errorf(errorWrapFormat, err)
+				}
+
+				return nil
+			case completeFlag:
+				return runCompletion(os.Args[i+2:], os.Stdout)
+			}
+		}
+	}
+
 	flag.Usage = showUsage
 	flag.CommandLine.Usage = showUsage
 
