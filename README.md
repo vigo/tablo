@@ -419,6 +419,16 @@ rake test            # run test
 
 ## Change Log
 
+**2026-05-13**
+
+- fix bash completion when flag values or file paths are surrounded by quotes
+  (e.g. `tablo -f "," users.csv <TAB>`); matched `"…"` and `'…'` wrappers are
+  now stripped before suggestions are computed
+- fix bash completion for inline `--flag=value` forms; Bash's default
+  `COMP_WORDBREAKS` splits on `=`, so the flag, `=`, and value arrived as
+  separate tokens and column suggestions disappeared. The Go-side completion
+  now re-joins them before parsing.
+
 **2026-05-10**
 
 - add `-j` / `-json` output mode
