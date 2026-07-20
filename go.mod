@@ -3,7 +3,7 @@ module github.com/vigo/tablo
 go 1.25.5
 
 require (
-	github.com/jedib0t/go-pretty/v6 v6.7.10
+	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/stretchr/testify v1.11.1
 )
 
